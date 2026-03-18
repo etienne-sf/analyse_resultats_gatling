@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.backends.legacy:build"
+
+[project]
+name = "analyse-resultats-gatling"
+version = "0.1.0"
+description = "Analyse et visualisation des résultats de tests de performance Gatling"
+requires-python = ">=3.11"
+readme = "README.md"
+license = { text = "MIT" }
+
+# Aucune dépendance tierce requise.
+# Le serveur de développement est fourni par la stdlib : python -m http.server 8080
+
+[tool.setuptools]
+packages = []
