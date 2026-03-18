@@ -77,3 +77,41 @@ results/<simulation-name>-<timestamp>/js/stats.json
 
 - `stats` contient toutes les métriques de performance d'un nœud (groupe ou requête individuelle).
 - `contents` contient les nœuds enfants (sous-groupes ou requêtes individuelles) — **non affiché** dans cette vue.
+
+## Résolution des erreurs courantes
+
+### « Failed to fetch » / erreur CORS
+
+Le navigateur bloque les requêtes vers un serveur distant qui ne renvoie pas l'en-tête
+`Access-Control-Allow-Origin`. C'est la cause la plus fréquente de l'erreur "Failed to fetch".
+
+**Solutions :**
+
+#### Option A — Configurer CORS sur le serveur Apache distant
+
+Ajouter dans le fichier `.htaccess` du répertoire contenant les résultats Gatling :
+
+```apache
+Header set Access-Control-Allow-Origin "*"
+```
+
+Ou dans la configuration Apache (`httpd.conf` / virtualhost) :
+
+```apache
+<Directory "/var/www/html/gatling-results">
+    Header set Access-Control-Allow-Origin "*"
+</Directory>
+```
+
+Le module `mod_headers` doit être activé (`a2enmod headers` sur Debian/Ubuntu,
+`LoadModule headers_module` sur CentOS/RHEL).
+
+#### Option B — Utiliser l'onglet « Fichier local »
+
+Télécharger le fichier `stats.json` localement, puis le charger via l'onglet
+📂 **Fichier local** (glisser-déposer ou sélection). Aucune configuration serveur requise.
+
+#### Option C — Servir l'application depuis le même serveur
+
+Copier `index.html` et `app.js` dans le même répertoire Apache que les résultats Gatling.
+Les deux fichiers étant sur la même origine, CORS ne s'applique pas.

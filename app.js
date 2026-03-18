@@ -28,6 +28,18 @@ async function loadFromUrl() {
   const url = document.getElementById('stats-url').value.trim();
   if (!url) { showStatus('Veuillez saisir une URL.', 'error'); return; }
 
+  // Les URLs file:// ne peuvent pas être chargées via fetch() (politique de sécurité
+  // du navigateur). On bascule automatiquement vers l'onglet "Fichier local".
+  if (url.startsWith('file://') || url.startsWith('file:///')) {
+    switchTab('file');
+    showStatus(
+      '⚠️ Les URLs file:// ne peuvent pas être chargées via le réseau. ' +
+      'Utilisez l\'onglet 📂 Fichier local pour glisser-déposer ou sélectionner le fichier.',
+      'error'
+    );
+    return;
+  }
+
   const btn = document.getElementById('load-btn-url');
   btn.disabled = true;
   btn.textContent = 'Chargement…';
@@ -40,7 +52,20 @@ async function loadFromUrl() {
     const data = await resp.json();
     processData(data);
   } catch (err) {
-    showStatus(`Erreur : ${err.message}`, 'error');
+    // "Failed to fetch" sans détail = erreur réseau ou CORS
+    const isNetworkError = err instanceof TypeError && err.message.toLowerCase().includes('fetch');
+    if (isNetworkError) {
+      showStatus(
+        `Impossible d'accéder à l'URL. Causes possibles :\n` +
+        `• Le serveur distant n'autorise pas les requêtes cross-origin (CORS). ` +
+        `Ajoutez « Header set Access-Control-Allow-Origin "*" » dans la config Apache/.htaccess du serveur.\n` +
+        `• L'URL est inaccessible depuis ce poste (réseau, pare-feu).\n` +
+        `Alternative : utilisez l'onglet 📂 Fichier local.`,
+        'error'
+      );
+    } else {
+      showStatus(`Erreur : ${err.message}`, 'error');
+    }
     showEmpty();
   } finally {
     btn.disabled = false;
