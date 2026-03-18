@@ -4,6 +4,12 @@
 let allRequests = [];   // flat array of { groupPath, name, type, stats }
 let pendingFile = null; // File object selected but not yet loaded
 
+// Sort state: { col: string, dir: 'asc'|'desc' }
+let sortState = { col: 'name', dir: 'asc' };
+
+// Labels des bandes group1..group4 (lus depuis le premier nœud du JSON)
+let bandLabels = ['< 800 ms', '800–1200 ms', '≥ 1200 ms', 'Échec'];
+
 /* ════════════════════════════════════════════════════════════════
    TABS
    ════════════════════════════════════════════════════════════════ */
@@ -114,6 +120,16 @@ function onDrop(e) {
 function processData(data) {
   allRequests = [];
   walkNode(data, []);
+  // Extraire les libellés des bandes depuis le premier nœud disponible
+  const first = allRequests.find(r => r.stats && r.stats.group1);
+  if (first) {
+    bandLabels = [
+      first.stats.group1.name || '< 800 ms',
+      first.stats.group2.name || '800–1200 ms',
+      first.stats.group3.name || '≥ 1200 ms',
+      first.stats.group4.name || 'Échec',
+    ];
+  }
   hideStatus();
   renderAll();
 }
@@ -154,31 +170,67 @@ function walkNode(node, groupPath) {
 /* ════════════════════════════════════════════════════════════════
    SORTING & FILTERING
    ════════════════════════════════════════════════════════════════ */
-function getSortedRequests() {
-  const sort = document.getElementById('sort-select').value;
-  const arr = [...allRequests];
-  arr.sort((a, b) => {
-    switch (sort) {
-      case 'group-asc':  return cmpStr(a.groupPath, b.groupPath) || cmpStr(a.name, b.name);
-      case 'group-desc': return cmpStr(b.groupPath, a.groupPath) || cmpStr(a.name, b.name);
-      case 'name-asc':   return cmpStr(a.name, b.name);
-      case 'name-desc':  return cmpStr(b.name, a.name);
-      case 'total-desc': return numVal(b, 'numberOfRequests', 'total') - numVal(a, 'numberOfRequests', 'total');
-      case 'ko-desc':    return numVal(b, 'numberOfRequests', 'ko')    - numVal(a, 'numberOfRequests', 'ko');
-      case 'mean-desc':  return numVal(b, 'meanResponseTime', 'total') - numVal(a, 'meanResponseTime', 'total');
-      case 'p95-desc':   return numVal(b, 'percentiles3', 'total')     - numVal(a, 'percentiles3', 'total');
-      default: return 0;
-    }
+
+// Column definitions: { id, label, getValue(req) → number|string, fmt? }
+const COLUMNS = [
+  { id: 'name',   label: 'Nom',       getValue: r => r.name },
+  { id: 'type',   label: 'Type',      getValue: r => r.type },
+  { id: 'total',  label: 'Total',     getValue: r => numVal(r, 'numberOfRequests', 'total') },
+  { id: 'ok',     label: 'OK',        getValue: r => numVal(r, 'numberOfRequests', 'ok') },
+  { id: 'ko',     label: 'KO',        getValue: r => numVal(r, 'numberOfRequests', 'ko') },
+  { id: 'min',    label: 'Min (ms)',   getValue: r => numVal(r, 'minResponseTime', 'total') },
+  { id: 'max',    label: 'Max (ms)',   getValue: r => numVal(r, 'maxResponseTime', 'total') },
+  { id: 'mean',   label: 'Moy (ms)',   getValue: r => numVal(r, 'meanResponseTime', 'total') },
+  { id: 'stddev', label: 'σ (ms)',     getValue: r => numVal(r, 'standardDeviation', 'total') },
+  { id: 'p50',    label: 'P50 (ms)',   getValue: r => numVal(r, 'percentiles1', 'total') },
+  { id: 'p75',    label: 'P75 (ms)',   getValue: r => numVal(r, 'percentiles2', 'total') },
+  { id: 'p95',    label: 'P95 (ms)',   getValue: r => numVal(r, 'percentiles3', 'total') },
+  { id: 'p99',    label: 'P99 (ms)',   getValue: r => numVal(r, 'percentiles4', 'total') },
+  { id: 'rps',    label: 'Req/s',      getValue: r => numVal(r, 'meanNumberOfRequestsPerSecond', 'total'),
+                                        fmtCell: v => fmtFloat(v) },
+  // Bandes de réponse (group1..group4) — libellés dynamiques
+  { id: 'g1', label: () => bandLabels[0], getValue: r => r.stats?.group1?.count ?? 0,
+              fmtCell: (v, r) => fmtBand(r.stats?.group1) },
+  { id: 'g2', label: () => bandLabels[1], getValue: r => r.stats?.group2?.count ?? 0,
+              fmtCell: (v, r) => fmtBand(r.stats?.group2) },
+  { id: 'g3', label: () => bandLabels[2], getValue: r => r.stats?.group3?.count ?? 0,
+              fmtCell: (v, r) => fmtBand(r.stats?.group3) },
+  { id: 'g4', label: () => bandLabels[3], getValue: r => r.stats?.group4?.count ?? 0,
+              fmtCell: (v, r) => fmtBand(r.stats?.group4) },
+];
+
+function setSort(col) {
+  if (sortState.col === col) {
+    sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    sortState.col = col;
+    sortState.dir = col === 'name' || col === 'type' ? 'asc' : 'desc';
+  }
+  renderAll();
+}
+
+function getSortedRequests(list) {
+  const source = list !== undefined ? list : allRequests;
+  const colDef = COLUMNS.find(c => c.id === sortState.col) || COLUMNS[0];
+  const dir = sortState.dir === 'asc' ? 1 : -1;
+  return [...source].sort((a, b) => {
+    const va = colDef.getValue(a);
+    const vb = colDef.getValue(b);
+    if (typeof va === 'string') return dir * cmpStr(va, vb);
+    return dir * (va - vb);
   });
-  return arr;
 }
 
 function filterCards() { renderAll(); }
 
 function getFilteredRequests() {
+  // On n'affiche que les deux niveaux : racine + enfants directs (All Requests)
+  const visible = allRequests.filter(r =>
+    r.groupPath === '(Racine)' || r.groupPath === 'All Requests'
+  );
   const q = document.getElementById('search').value.trim().toLowerCase();
-  if (!q) return getSortedRequests();
-  return getSortedRequests().filter(r =>
+  if (!q) return visible;
+  return visible.filter(r =>
     r.name.toLowerCase().includes(q) ||
     r.groupPath.toLowerCase().includes(q)
   );
@@ -188,9 +240,9 @@ function getFilteredRequests() {
    RENDERING
    ════════════════════════════════════════════════════════════════ */
 function renderAll() {
-  const main    = document.getElementById('main-content');
-  const empty   = document.getElementById('empty');
-  const toolbar = document.getElementById('toolbar');
+  const main      = document.getElementById('main-content');
+  const empty     = document.getElementById('empty');
+  const toolbar   = document.getElementById('toolbar');
   const countLabel = document.getElementById('count-label');
 
   if (allRequests.length === 0) {
@@ -203,134 +255,170 @@ function renderAll() {
   empty.style.display = 'none';
   toolbar.style.display = 'flex';
 
-  const requests = getFilteredRequests();
-  countLabel.textContent = `${requests.length} requête${requests.length !== 1 ? 's' : ''}`;
+  const filtered = getFilteredRequests();
+  const displayCount = filtered.length;
+  countLabel.textContent = `${displayCount} ligne${displayCount !== 1 ? 's' : ''}`;
 
-  // Group by groupPath
-  const groups = new Map();
-  for (const req of requests) {
-    if (!groups.has(req.groupPath)) groups.set(req.groupPath, []);
-    groups.get(req.groupPath).push(req);
-  }
+  // Niveau 0 : nœud racine  (groupPath === '(Racine)')
+  // Niveau 1 : enfants directs de la racine (groupPath === 'All Requests')
+  //            Ce sont les groupes de premier niveau, avec leurs propres stats.
+  const rootReqs   = filtered.filter(r => r.groupPath === '(Racine)');
+  const level1Reqs = filtered.filter(r => r.groupPath === 'All Requests');
 
-  // Build HTML
   let html = '';
-  for (const [groupPath, reqs] of groups) {
-    html += `
-      <section class="group-section">
-        <div class="group-title">
-          📁 ${escHtml(groupPath)}
-          <span class="group-badge">${reqs.length}</span>
-        </div>
-        ${reqs.map(r => renderCard(r)).join('')}
-      </section>`;
+  if (rootReqs.length > 0) {
+    html += renderTableSection('(Racine)', rootReqs);
+  }
+  if (level1Reqs.length > 0) {
+    html += renderTableSection('All requests', level1Reqs);
   }
 
   main.innerHTML = html;
 }
 
-function renderCard(req) {
-  const s = req.stats;
-  const total = numVal(req, 'numberOfRequests', 'total');
-  const ok    = numVal(req, 'numberOfRequests', 'ok');
-  const ko    = numVal(req, 'numberOfRequests', 'ko');
-  const koClass = ko === 0 ? 'ko zero' : 'ko';
-  const p50  = numVal(req, 'percentiles1', 'total');
-  const p95  = numVal(req, 'percentiles3', 'total');
-  const p99  = numVal(req, 'percentiles4', 'total');
-  const cardId = 'card-' + Math.random().toString(36).slice(2);
+/**
+ * Renders a collapsible table section (one header row + data rows).
+ */
+function renderTableSection(title, reqs) {
+  const sorted = getSortedRequests(reqs);
+  const sectionId = 'sec-' + title.replace(/\W+/g, '-');
+
+  const headerCells = COLUMNS.map(col => {
+    const isActive = sortState.col === col.id;
+    const arrow = isActive ? (sortState.dir === 'asc' ? ' ↑' : ' ↓') : '';
+    const cls = isActive ? 'th-sort active' : 'th-sort';
+    const labelStr = typeof col.label === 'function' ? col.label() : col.label;
+    return `<th class="${cls}" onclick="setSort('${col.id}')">${escHtml(labelStr)}${arrow}</th>`;
+  }).join('');
+
+  const dataRows = sorted.map((req, idx) => {
+    const rowId = `${sectionId}-row-${idx}`;
+    const detailId = `${sectionId}-det-${idx}`;
+    const ko = numVal(req, 'numberOfRequests', 'ko');
+    const koClass = ko > 0 ? 'val-ko' : 'val-ok';
+    const cells = COLUMNS.map(col => {
+      const v = col.getValue(req);
+      let display, cls;
+      if (col.id === 'name') {
+        display = escHtml(req.name); cls = 'col-name';
+      } else if (col.id === 'type') {
+        display = `<span class="type-badge ${escHtml(req.type)}">${escHtml(req.type)}</span>`; cls = '';
+      } else if (col.id === 'ko') {
+        display = fmt(v); cls = koClass;
+      } else if (col.id === 'ok') {
+        display = fmt(v); cls = 'val-ok';
+      } else if (col.id === 'g4') {
+        // Échecs : colorier en rouge si > 0
+        display = col.fmtCell ? col.fmtCell(v, req) : fmt(v);
+        cls = (req.stats?.group4?.count ?? 0) > 0 ? 'val-ko' : '';
+      } else if (col.fmtCell) {
+        display = col.fmtCell(v, req); cls = '';
+      } else {
+        display = fmt(v); cls = '';
+      }
+      return `<td class="${cls}">${display}</td>`;
+    }).join('');
+
+    return `
+      <tr class="data-row" onclick="toggleRow('${rowId}','${detailId}')">
+        <td class="expand-cell">▶</td>
+        ${cells}
+      </tr>
+      <tr class="detail-row" id="${detailId}" style="display:none">
+        <td colspan="${COLUMNS.length + 1}" class="detail-cell">
+          ${renderDetailPanel(req)}
+        </td>
+      </tr>`;
+  }).join('');
 
   return `
-    <div class="request-card">
-      <div class="request-header" onclick="toggleCard(this)" id="${cardId}-hdr">
-        <span class="request-name">${escHtml(req.name)}</span>
-        <span class="request-type-badge ${req.type}">${escHtml(req.type)}</span>
-        <span class="toggle-icon">▼</span>
+    <section class="tbl-section">
+      <div class="tbl-section-title">
+        📁 ${escHtml(title)}
+        <span class="section-badge">${sorted.length}</span>
       </div>
-      <div class="summary-pills">
-        <span class="pill total">Total : ${fmt(total)}</span>
-        <span class="pill ok">✓ OK : ${fmt(ok)}</span>
-        <span class="pill ${koClass}">✗ KO : ${fmt(ko)}</span>
-        <span class="pill p50">P50 : ${fmtMs(p50)}</span>
-        <span class="pill p95">P95 : ${fmtMs(p95)}</span>
-        <span class="pill p99">P99 : ${fmtMs(p99)}</span>
+      <div class="tbl-wrapper">
+        <table class="compact-table">
+          <thead>
+            <tr>
+              <th class="th-expand"></th>
+              ${headerCells}
+            </tr>
+          </thead>
+          <tbody id="${sectionId}">
+            ${dataRows}
+          </tbody>
+        </table>
       </div>
-      <div class="stats-detail" id="${cardId}-detail">
-        ${renderStatsTable(s)}
-      </div>
-    </div>`;
+    </section>`;
 }
 
-function renderStatsTable(s) {
-  if (!s) return '<p style="padding:1rem;color:#555">Aucune statistique disponible.</p>';
+/**
+ * Returns the expanded detail panel HTML for one request (full stats table).
+ */
+function renderDetailPanel(req) {
+  const s = req.stats;
+  if (!s) return '<p class="no-stats">Aucune statistique disponible.</p>';
 
-  const rows = [
-    ['Nombre de requêtes',         s.numberOfRequests],
-    ['Temps min (ms)',              s.minResponseTime],
-    ['Temps max (ms)',              s.maxResponseTime],
-    ['Temps moyen (ms)',            s.meanResponseTime],
-    ['Écart-type (ms)',             s.standardDeviation],
-    ['Percentile 50 (ms)',          s.percentiles1],
-    ['Percentile 75 (ms)',          s.percentiles2],
-    ['Percentile 95 (ms)',          s.percentiles3],
-    ['Percentile 99 (ms)',          s.percentiles4],
-    ['Requêtes/s (moyenne)',        s.meanNumberOfRequestsPerSecond],
+  const metrics = [
+    ['Nombre de requêtes',   s.numberOfRequests],
+    ['Temps min',            s.minResponseTime],
+    ['Temps max',            s.maxResponseTime],
+    ['Temps moyen',          s.meanResponseTime],
+    ['Écart-type',           s.standardDeviation],
+    ['Percentile 50',        s.percentiles1],
+    ['Percentile 75',        s.percentiles2],
+    ['Percentile 95',        s.percentiles3],
+    ['Percentile 99',        s.percentiles4],
+    ['Requêtes/s (moyenne)', s.meanNumberOfRequestsPerSecond],
   ];
 
-  const groupBands = [
-    ['Groupe 1 ' + bandLabel(s.group1), s.group1],
-    ['Groupe 2 ' + bandLabel(s.group2), s.group2],
-    ['Groupe 3 ' + bandLabel(s.group3), s.group3],
-    ['Groupe 4 ' + bandLabel(s.group4), s.group4],
-  ].filter(([, v]) => v != null);
+  const groupBands = [s.group1, s.group2, s.group3, s.group4]
+    .filter(Boolean)
+    .map(g => {
+      const label = g.htmlName || g.name || '';
+      return `<tr class="band-row"><td>${escHtml(label)}</td><td>${fmt(g.count)}</td><td colspan="2">${fmt(g.percentage)} %</td></tr>`;
+    }).join('');
 
-  let html = `
-    <table class="stats-table">
-      <thead><tr>
-        <th>Métrique</th>
-        <th>Total</th>
-        <th>OK</th>
-        <th>KO</th>
-      </tr></thead>
-      <tbody>`;
+  const metricRows = metrics.filter(([, v]) => v != null).map(([label, val]) => `
+    <tr>
+      <td class="detail-metric">${escHtml(label)}</td>
+      <td>${fmt(val.total)}</td>
+      <td class="val-ok">${fmt(val.ok)}</td>
+      <td class="val-ko">${fmt(val.ko)}</td>
+    </tr>`).join('');
 
-  for (const [label, val] of rows) {
-    if (!val) continue;
-    html += `
-        <tr>
-          <td class="metric-name">${escHtml(label)}</td>
-          <td class="val-total">${fmt(val.total)}</td>
-          <td class="val-ok">${fmt(val.ok)}</td>
-          <td class="val-ko">${fmt(val.ko)}</td>
-        </tr>`;
-  }
-
-  for (const [label, val] of groupBands) {
-    if (!val) continue;
-    html += `
-        <tr class="group-band-row">
-          <td class="metric-name">${escHtml(label)}</td>
-          <td class="val-total" colspan="3">${fmt(val.count)} (${fmt(val.percentage)} %)</td>
-        </tr>`;
-  }
-
-  html += '</tbody></table>';
-  return html;
-}
-
-function bandLabel(g) {
-  if (!g) return '';
-  return g.htmlName ? `— ${g.htmlName}` : (g.name ? `— ${g.name}` : '');
+  return `
+    <table class="detail-table">
+      <thead>
+        <tr><th>Métrique</th><th>Total</th><th>OK</th><th>KO</th></tr>
+      </thead>
+      <tbody>
+        ${metricRows}
+        ${groupBands}
+      </tbody>
+    </table>`;
 }
 
 /* ════════════════════════════════════════════════════════════════
    UI HELPERS
    ════════════════════════════════════════════════════════════════ */
-function toggleCard(hdr) {
-  hdr.classList.toggle('expanded');
-  const cardEl = hdr.closest('.request-card');
-  const detail = cardEl.querySelector('.stats-detail');
-  detail.classList.toggle('open');
+function toggleRow(rowId, detailId) {
+  const detailEl = document.getElementById(detailId);
+  if (!detailEl) return;
+  const isOpen = detailEl.style.display !== 'none';
+  detailEl.style.display = isOpen ? 'none' : 'table-row';
+  // Update expand arrow on the data row (previous sibling)
+  const dataRows = detailEl.parentElement.querySelectorAll('.data-row');
+  dataRows.forEach(tr => {
+    const cell = tr.querySelector('.expand-cell');
+    if (!cell) return;
+    // Find corresponding detail row
+    const next = tr.nextElementSibling;
+    if (next && next.id === detailId) {
+      cell.textContent = isOpen ? '▶' : '▼';
+    }
+  });
 }
 
 function showStatus(msg, type) {
@@ -362,6 +450,17 @@ function fmt(v) {
   if (v == null) return '—';
   if (typeof v === 'number') return v.toLocaleString('fr-FR');
   return String(v);
+}
+function fmtFloat(v) {
+  if (v == null || v === 0) return '—';
+  return v.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtBand(g) {
+  if (!g || g.count == null) return '—';
+  const pct = typeof g.percentage === 'number'
+    ? g.percentage.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+    : '0,0';
+  return `${g.count.toLocaleString('fr-FR')} <span class="band-pct">(${pct} %)</span>`;
 }
 function fmtMs(v) {
   if (v == null || v === 0) return '—';

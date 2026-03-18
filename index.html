@@ -39,49 +39,52 @@
     #status.info  { background: #12232e; border: 1px solid #2980b9; color: #5dade2; }
 
     /* ── Toolbar ── */
-    #toolbar { display: none; padding: 1rem 2rem; gap: 1rem; align-items: center; flex-wrap: wrap; background: #141622; border-bottom: 1px solid #2a2d3e; }
-    #search { padding: 0.45rem 0.8rem; border-radius: 6px; border: 1px solid #3a3d50; background: #1e2135; color: #e0e0e0; font-size: 0.9rem; width: 240px; }
+    #toolbar { display: none; padding: 0.75rem 2rem; gap: 1rem; align-items: center; flex-wrap: wrap; background: #141622; border-bottom: 1px solid #2a2d3e; }
+    #search { padding: 0.45rem 0.8rem; border-radius: 6px; border: 1px solid #3a3d50; background: #1e2135; color: #e0e0e0; font-size: 0.9rem; width: 280px; }
     #search:focus { outline: none; border-color: #ff6b35; }
-    .toolbar-label { font-size: 0.85rem; color: #888; margin-left: auto; }
-    #sort-select { padding: 0.45rem 0.7rem; border-radius: 6px; border: 1px solid #3a3d50; background: #1e2135; color: #e0e0e0; font-size: 0.9rem; cursor: pointer; }
-    #sort-select:focus { outline: none; border-color: #ff6b35; }
-    #count-label { font-size: 0.85rem; color: #666; }
+    #count-label { font-size: 0.85rem; color: #666; margin-left: auto; }
 
     /* ── Main content ── */
-    main { padding: 1.5rem 2rem; }
-    .group-section { margin-bottom: 2.5rem; }
-    .group-title { font-size: 1.1rem; font-weight: 700; color: #ff6b35; padding: 0.4rem 0; border-bottom: 1px solid #2a2d3e; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem; }
-    .group-title .group-badge { font-size: 0.75rem; background: #ff6b3533; color: #ff6b35; border-radius: 4px; padding: 0.1rem 0.45rem; }
-    .request-card { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px; margin-bottom: 1rem; overflow: hidden; transition: border-color 0.15s; }
-    .request-card:hover { border-color: #ff6b3566; }
-    .request-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; cursor: pointer; user-select: none; background: #1e2135; gap: 1rem; }
-    .request-name { font-weight: 600; font-size: 0.95rem; color: #c8d0e0; flex: 1; word-break: break-all; }
-    .request-type-badge { font-size: 0.72rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-    .request-type-badge.REQUEST { background: #1a3a2a; color: #2ecc71; border: 1px solid #27ae60; }
-    .request-type-badge.GROUP   { background: #2a1a3a; color: #9b59b6; border: 1px solid #8e44ad; }
-    .summary-pills { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0.5rem 1rem; border-bottom: 1px solid #2a2d3e; }
-    .pill { font-size: 0.78rem; padding: 0.2rem 0.6rem; border-radius: 20px; font-weight: 600; white-space: nowrap; }
-    .pill.total   { background: #1e2135; color: #aaa; border: 1px solid #3a3d50; }
-    .pill.ok      { background: #1a3a2a; color: #2ecc71; }
-    .pill.ko      { background: #3a1a1a; color: #e74c3c; }
-    .pill.ko.zero { background: #1a3a2a; color: #2ecc71; }
-    .pill.p50     { background: #1e2a3a; color: #5dade2; }
-    .pill.p95     { background: #1e2a3a; color: #f39c12; }
-    .pill.p99     { background: #1e2a3a; color: #e67e22; }
-    .stats-detail { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
-    .stats-detail.open { max-height: 2000px; }
-    .toggle-icon { font-size: 0.75rem; color: #555; transition: transform 0.2s; flex-shrink: 0; }
-    .request-header.expanded .toggle-icon { transform: rotate(180deg); }
-    .stats-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    .stats-table th { text-align: left; padding: 0.45rem 1rem; color: #888; font-weight: 500; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; background: #12141f; border-bottom: 1px solid #2a2d3e; }
-    .stats-table td { padding: 0.45rem 1rem; border-bottom: 1px solid #1e2135; color: #c8d0e0; }
-    .stats-table tr:last-child td { border-bottom: none; }
-    .stats-table tr:hover td { background: #1e2135; }
-    .stats-table td.metric-name { color: #8899bb; font-size: 0.82rem; width: 38%; }
-    .stats-table td.val-total { color: #c8d0e0; font-weight: 500; }
-    .stats-table td.val-ok { color: #2ecc71; }
-    .stats-table td.val-ko { color: #e74c3c; }
-    .group-band-row td { color: #b0b8c8; font-style: italic; }
+    main { padding: 1rem 2rem 2rem; }
+
+    /* ── Table sections ── */
+    .tbl-section { margin-bottom: 2.5rem; }
+    .tbl-section-title { font-size: 1rem; font-weight: 700; color: #ff6b35; padding: 0.4rem 0; border-bottom: 1px solid #2a2d3e; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.5rem; }
+    .section-badge { font-size: 0.72rem; background: #ff6b3533; color: #ff6b35; border-radius: 4px; padding: 0.1rem 0.45rem; }
+    .tbl-wrapper { overflow-x: auto; }
+
+    /* ── Compact table ── */
+    .compact-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; table-layout: auto; }
+    .compact-table thead tr { background: #12141f; }
+    .compact-table th { padding: 0.4rem 0.6rem; color: #888; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid #2a2d3e; white-space: nowrap; }
+    .th-sort { cursor: pointer; user-select: none; transition: color 0.12s; }
+    .th-sort:hover { color: #ccc; }
+    .th-sort.active { color: #ff6b35; }
+    .th-expand { width: 24px; }
+
+    .compact-table tbody tr.data-row { cursor: pointer; transition: background 0.1s; }
+    .compact-table tbody tr.data-row:hover td { background: #1e2135; }
+    .compact-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #1e2135; color: #c8d0e0; white-space: nowrap; vertical-align: middle; }
+    .compact-table tr.data-row:hover + tr.detail-row td { background: #1e2135; }
+
+    .expand-cell { color: #555; font-size: 0.65rem; text-align: center; width: 22px; }
+    .col-name { white-space: normal; word-break: break-word; min-width: 180px; color: #dde4f0; font-weight: 500; }
+    .type-badge { font-size: 0.68rem; padding: 0.1rem 0.4rem; border-radius: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .type-badge.REQUEST { background: #1a3a2a; color: #2ecc71; border: 1px solid #27ae60; }
+    .type-badge.GROUP   { background: #2a1a3a; color: #9b59b6; border: 1px solid #8e44ad; }
+    .val-ok  { color: #2ecc71; }
+    .val-ko  { color: #e74c3c; }
+    .band-pct { font-size: 0.75em; color: #888; }
+
+    /* ── Detail panel (expanded row) ── */
+    .detail-row td.detail-cell { padding: 0; background: #0f1117; }
+    .detail-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .detail-table th { text-align: left; padding: 0.4rem 1rem; color: #888; font-weight: 500; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; background: #12141f; border-bottom: 1px solid #2a2d3e; }
+    .detail-table td { padding: 0.4rem 1rem; border-bottom: 1px solid #1e2135; color: #c8d0e0; }
+    .detail-table tr:last-child td { border-bottom: none; }
+    .detail-table td.detail-metric { color: #8899bb; font-size: 0.8rem; width: 35%; }
+    .band-row td { color: #b0b8c8; font-style: italic; }
+    .no-stats { padding: 1rem; color: #555; }
 
     /* ── Empty state ── */
     #empty { display: none; text-align: center; padding: 4rem 2rem; color: #555; }
@@ -92,8 +95,7 @@
 
     @media (max-width: 640px) {
       header, .tab-strip, .tab-panel, #toolbar, main { padding-left: 1rem; padding-right: 1rem; }
-      .request-header { flex-wrap: wrap; }
-      .summary-pills { padding: 0.4rem 0.75rem; }
+      .tbl-wrapper { margin: 0 -1rem; }
     }
   </style>
 </head>
@@ -136,17 +138,6 @@
 
 <div id="toolbar">
   <input type="text" id="search" placeholder="🔍 Filtrer par nom…" oninput="filterCards()" />
-  <span class="toolbar-label">Trier par :</span>
-  <select id="sort-select" onchange="renderAll()">
-    <option value="group-asc">Groupe ↑</option>
-    <option value="group-desc">Groupe ↓</option>
-    <option value="name-asc">Nom ↑</option>
-    <option value="name-desc">Nom ↓</option>
-    <option value="total-desc">Total requêtes ↓</option>
-    <option value="ko-desc">KO ↓</option>
-    <option value="mean-desc">Temps moyen ↓</option>
-    <option value="p95-desc">P95 ↓</option>
-  </select>
   <span id="count-label"></span>
 </div>
 

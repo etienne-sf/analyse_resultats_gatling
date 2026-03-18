@@ -1,16 +1,14 @@
 /**
  * Test headless de app.js sur le vrai stats.json Gatling.
- * Simule walkNode, getSortedRequests, renderCard, renderStatsTable
+ * Simule walkNode, getSortedRequests, renderDetailPanel, escHtml
  * sans navigateur ni DOM.
  */
 const fs = require('fs');
 
 /* ── Stub DOM minimal ── */
-const _state = { sortValue: 'group-asc', searchValue: '' };
 global.document = {
   getElementById: (id) => {
-    if (id === 'sort-select') return { value: _state.sortValue };
-    if (id === 'search')      return { value: _state.searchValue };
+    if (id === 'search') return { value: '' };
     return { value: '', textContent: '', className: '', style: {}, disabled: false,
              classList: { toggle: () => {}, add: () => {}, remove: () => {} },
              addEventListener: () => {} };
@@ -47,43 +45,45 @@ groupNames.forEach(g => {
 });
 
 /* ════ TEST 2 : tri / filtre ════ */
-console.log('\n✅ TEST 2 — tri group-asc');
+console.log('\n✅ TEST 2 — tri name-asc (défaut)');
+sortState.col = 'name'; sortState.dir = 'asc';
 const sorted = getSortedRequests();
-console.log('   Premier :', sorted[0].groupPath, '/', sorted[0].name);
-console.log('   Dernier :', sorted[sorted.length-1].groupPath, '/', sorted[sorted.length-1].name);
+console.log('   Premier :', sorted[0].name);
+console.log('   Dernier :', sorted[sorted.length-1].name);
 
-_state.sortValue = 'p95-desc';
+sortState.col = 'p95'; sortState.dir = 'desc';
 const byP95 = getSortedRequests();
 console.log('\n✅ TEST 2b — tri p95-desc');
 console.log('   P95 max :', byP95[0].stats.percentiles3?.total, 'ms —', byP95[0].name);
 
-_state.searchValue = 'connexion';
+document.getElementById = (id) => {
+  if (id === 'search') return { value: 'connexion' };
+  return { value: '', textContent: '', style: {}, disabled: false, classList: { toggle:()=>{}, add:()=>{}, remove:()=>{} }, addEventListener:()=>{} };
+};
 const filtered = getFilteredRequests();
 console.log('\n✅ TEST 2c — filtre "connexion"');
 console.log('   Résultats :', filtered.length);
 
 /* ════ TEST 3 : rendu HTML ════ */
-_state.searchValue = '';
-_state.sortValue = 'group-asc';
-console.log('\n✅ TEST 3 — renderCard / renderStatsTable');
+document.getElementById = (id) => {
+  if (id === 'search') return { value: '' };
+  return { value: '', textContent: '', style: {}, disabled: false, classList: { toggle:()=>{}, add:()=>{}, remove:()=>{} }, addEventListener:()=>{} };
+};
+console.log('\n✅ TEST 3 — renderDetailPanel');
 let errors = 0;
 for (const req of allRequests) {
   try {
-    const html = renderCard(req);
-    if (!html.includes(escHtml(req.name))) {
-      console.error('   ❌ Nom absent dans la carte :', req.name);
-      errors++;
-    }
+    const html = renderDetailPanel(req);
     if (req.stats && !html.includes('Nombre de requêtes')) {
       console.error('   ❌ Table stats absente pour :', req.name);
       errors++;
     }
   } catch (e) {
-    console.error('   ❌ Erreur renderCard pour', req.name, ':', e.message);
+    console.error('   ❌ Erreur renderDetailPanel pour', req.name, ':', e.message);
     errors++;
   }
 }
-if (errors === 0) console.log('   Toutes les cartes rendues sans erreur (' + allRequests.length + ')');
+if (errors === 0) console.log('   Tous les panneaux rendus sans erreur (' + allRequests.length + ')');
 
 /* ════ TEST 4 : escHtml ════ */
 console.log('\n✅ TEST 4 — escHtml');
