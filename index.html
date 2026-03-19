@@ -69,12 +69,16 @@
 
     .expand-cell { color: #555; font-size: 0.65rem; text-align: center; width: 22px; }
     .col-name { white-space: normal; word-break: break-word; min-width: 180px; color: #dde4f0; font-weight: 500; }
-    .type-badge { font-size: 0.68rem; padding: 0.1rem 0.4rem; border-radius: 3px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
-    .type-badge.REQUEST { background: #1a3a2a; color: #2ecc71; border: 1px solid #27ae60; }
-    .type-badge.GROUP   { background: #2a1a3a; color: #9b59b6; border: 1px solid #8e44ad; }
     .val-ok  { color: #2ecc71; }
     .val-ko  { color: #e74c3c; }
     .band-pct { font-size: 0.75em; color: #888; }
+    .th-detail { width: 36px; text-align: center; }
+    .detail-link-cell { text-align: center; white-space: nowrap; }
+    .detail-link-cell a { font-size: 1rem; text-decoration: none; opacity: 0.7; transition: opacity 0.15s; }
+    .detail-link-cell a:hover { opacity: 1; }
+    .breadcrumb { padding: 0.6rem 1rem; font-size: 0.88rem; color: #888; }
+    .breadcrumb a { color: #ff6b35; text-decoration: none; }
+    .breadcrumb a:hover { text-decoration: underline; }
 
     /* ── Detail panel (expanded row) ── */
     .detail-row td.detail-cell { padding: 0; background: #0f1117; }
@@ -110,17 +114,17 @@
 
 <div id="source-bar">
   <div class="tab-strip">
-    <button class="tab-btn active" onclick="switchTab('url')">🌐 URL</button>
-    <button class="tab-btn" onclick="switchTab('file')">📂 Fichier local</button>
+    <button class="tab-btn" onclick="switchTab('url')">🌐 URL</button>
+    <button class="tab-btn active" onclick="switchTab('file')">📂 Fichier local</button>
   </div>
-  <div class="tab-panel active" id="url-bar">
+  <div class="tab-panel" id="url-bar">
     <label for="stats-url">URL du fichier stats.json :</label>
     <input type="text" id="stats-url"
       placeholder="http://localhost:8080/results/simulation/js/stats.json"
       value="" autocomplete="off" spellcheck="false" />
     <button class="load-btn" id="load-btn-url" onclick="loadFromUrl()">Charger</button>
   </div>
-  <div class="tab-panel" id="file-bar">
+  <div class="tab-panel active" id="file-bar">
     <label>Fichier stats.json local :</label>
     <div id="drop-zone"
          onclick="document.getElementById('file-input').click()"
@@ -156,6 +160,6 @@
   <a href="https://gatling.io" style="color:#ff6b35;text-decoration:none">Gatling</a>
 </footer>
 
-<script src="app.js"></script>
+<script src="app.js?v=20260319" charset="utf-8"></script>
 </body>
 </html>

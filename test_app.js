@@ -93,6 +93,26 @@ console.log('   Entrée  :', xss);
 console.log('   Sortie  :', escaped);
 console.assert(!escaped.includes('<script>'), 'escHtml doit échapper <');
 
+/* ════ TEST 5 : lien loupe en mode fichier local ════ */
+isLocalFile = true;
+currentSrc  = 'stats.json';
+detailGroup = null;
+processData(data);
+const level1 = allRequests.filter(r => r.groupPath === 'All Requests');
+const htmlSection = renderTableSection('All requests', level1, true, req => req.name);
+const loupeCount = (htmlSection.match(/&#x1F50D;/g) || []).length;
+const navigateCount = (htmlSection.match(/navigateTo\(/g) || []).length;
+console.log('\n✅ TEST 5 — loupe en mode fichier local');
+console.log('   Lignes All requests :', level1.length);
+console.log('   Loupes générées :', loupeCount);
+console.log('   Appels navigateTo :', navigateCount);
+if (loupeCount !== level1.length || navigateCount !== level1.length) {
+  console.error('   ❌ Nombre de loupes incorrect !');
+  errors++;
+} else {
+  console.log('   Tous les liens loupe sont présents ✅');
+}
+
 /* ════ RÉSUMÉ ════ */
 console.log('\n══════════════════════════════');
 if (errors === 0) {

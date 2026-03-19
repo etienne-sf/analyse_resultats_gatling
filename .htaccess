@@ -1,0 +1,3 @@
+# Force UTF-8 pour tous les fichiers texte servis par Apache
+AddDefaultCharset UTF-8
+AddCharset UTF-8 .html .js .json .css .txt
