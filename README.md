@@ -14,22 +14,48 @@ L'application est une page HTML statique avec du JavaScript vanilla. Elle :
 
 ```
 analyse_resultats_gatling/
-├── index.html          # Application principale (HTML + JS)
+├── index.html          # Application principale (HTML + CSS)
+├── app.js              # Toute la logique JavaScript
+├── server.py           # Serveur HTTP avec API d'arborescence (optionnel)
 ├── README.md
 └── pyproject.toml
 ```
 
 ## Lancer l'application
 
-### Option 1 — Serveur Python intégré (recommandé)
+### Option 1 — Serveur Python intégré avec arborescence (recommandé)
+
+```bash
+# Répertoire par défaut :
+#   D:\Users\gauthiereti\Documents\Portable\Archi\Java\git\tests-de-charge\target\gatling
+python server.py
+
+# Ou avec un port et/ou un répertoire différent :
+python server.py 8080 "C:\mon\repertoire\gatling\target\gatling"
+```
+
+Puis ouvrir [http://localhost:8080](http://localhost:8080) dans le navigateur.
+
+L'onglet **🗂️ Arborescence** liste automatiquement les simulations Gatling disponibles.
+Un clic sur **Analyser** charge immédiatement le `stats.json` correspondant.
+
+#### API exposée par server.py
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/tree?root=<chemin>` | Liste les sous-répertoires et détecte les `js/stats.json` |
+| `GET /api/stats?path=<chemin_absolu>` | Retourne le contenu d'un `stats.json` |
+| `GET /` et fichiers statiques | Sert `index.html`, `app.js`, etc. |
+
+### Option 2 — Serveur Python minimal (sans arborescence)
 
 ```bash
 python -m http.server 8080
 ```
 
-Puis ouvrir [http://localhost:8080](http://localhost:8080) dans le navigateur.
+Puis charger le fichier via l'onglet 🌐 **URL** ou 📂 **Fichier local**.
 
-### Option 2 — Ouvrir directement dans le navigateur
+### Option 3 — Ouvrir directement dans le navigateur
 
 Ouvrir `index.html` directement dans le navigateur (fonctionne si le fichier `stats.json` est servi depuis le même domaine ou si CORS est autorisé).
 

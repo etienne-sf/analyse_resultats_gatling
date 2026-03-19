@@ -24,11 +24,171 @@ let detailGroup = null;
    TABS
    ════════════════════════════════════════════════════════════════ */
 function switchTab(tab) {
-  document.querySelectorAll('.tab-btn').forEach((b, i) => {
-    b.classList.toggle('active', (i === 0) === (tab === 'url'));
+  const tabs = ['tree', 'file', 'url'];
+  document.querySelectorAll('.tab-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', tabs[i] === tab);
   });
   document.getElementById('url-bar').classList.toggle('active', tab === 'url');
   document.getElementById('file-bar').classList.toggle('active', tab === 'file');
+  document.getElementById('tree-bar').classList.toggle('active', tab === 'tree');
+  // La liste des répertoires se masque/affiche avec l'onglet
+  // mais #tree-nav-sticky reste visible en permanence s'il est chargé
+  const treeContainer = document.getElementById('tree-container');
+  if (tab === 'tree') {
+    treeContainer.classList.add('active');
+    // Charger l'arbre automatiquement à la 1ère ouverture de l'onglet
+    if (!treeContainer.dataset.loaded) loadTree();
+  } else {
+    treeContainer.classList.remove('active');
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ARBORESCENCE GATLING (requiert server.py)
+   ════════════════════════════════════════════════════════════════ */
+
+/**
+ * Charge la liste des simulations depuis /api/tree et l'affiche.
+ * Utilise le champ #tree-root-input comme root (vide = root par défaut du serveur).
+ */
+/**
+ * Charge l'arborescence depuis /api/tree?root=<chemin> et l'affiche.
+ * @param {string|null} rootOverride  Si fourni, navigue vers ce chemin sans lire le champ input.
+ */
+async function loadTree(rootOverride) {
+  const input     = document.getElementById('tree-root-input');
+  const container = document.getElementById('tree-container');
+  container.classList.add('active');
+  container.dataset.loaded = '1';
+
+  const rootVal = rootOverride !== undefined
+    ? (rootOverride || '')
+    : (input ? input.value.trim() : '');
+
+  const url = rootVal
+    ? '/api/tree?root=' + encodeURIComponent(rootVal)
+    : '/api/tree';
+
+  container.innerHTML = '<p class="tree-empty" style="padding:1rem 0">Chargement…</p>';
+
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      container.innerHTML = `<p class="tree-error">Erreur : ${escHtml(err.error || resp.statusText)}</p>`;
+      return;
+    }
+    const data = await resp.json();
+
+    // Synchroniser le champ avec le root effectif retourné par le serveur
+    if (input) input.value = data.root || '';
+
+    renderTree(container, data);
+  } catch (e) {
+    container.innerHTML =
+      `<p class="tree-error">Impossible de contacter le serveur.<br>` +
+      `Lancez <code>python server.py</code> depuis le répertoire du projet.</p>`;
+  }
+}
+
+/**
+ * Génère le HTML de la navigation + liste des simulations et l'injecte dans container.
+ */
+function renderTree(container, data) {
+  const nodes  = data.nodes  || [];
+  const crumbs = data.breadcrumb || [];
+
+  // ── Fil d'Ariane : injecté dans #tree-nav-sticky (toujours visible) ──
+  const crumbHtml = crumbs.map((c, i) => {
+    const isLast = i === crumbs.length - 1;
+    if (isLast) {
+      return `<span class="bc-seg bc-current">${escHtml(c.name)}</span>`;
+    }
+    const arg = escHtml(JSON.stringify(c.path));
+    return `<a class="bc-seg bc-link" href="javascript:void(0)"
+               onclick="loadTree(${arg})">${escHtml(c.name)}</a>`;
+  }).join('<span class="bc-sep">›</span>');
+
+  // ── Bouton "Répertoire parent" ──
+  const parentHtml = data.parent
+    ? (() => {
+        const arg = escHtml(JSON.stringify(data.parent));
+        return `<button class="tree-nav-btn" onclick="loadTree(${arg})" title="Répertoire parent">
+                  ⬆ Parent
+                </button>`;
+      })()
+    : '';
+
+  // Mettre à jour la barre permanente
+  const navSticky = document.getElementById('tree-nav-sticky');
+  navSticky.innerHTML = `<nav class="tree-breadcrumb">${crumbHtml}</nav>${parentHtml}`;
+  navSticky.classList.add('active');
+
+  // ── Liste des sous-répertoires : injectée dans container ──
+  let listHtml;
+  if (nodes.length === 0) {
+    listHtml = '<p class="tree-empty">Aucun sous-répertoire dans ce dossier.</p>';
+  } else {
+    const statsCount = nodes.filter(n => n.hasStats).length;
+    const summary = `${nodes.length} répertoire${nodes.length > 1 ? 's' : ''}`
+      + (statsCount ? ` · <strong style="color:#2ecc71">${statsCount} simulation${statsCount > 1 ? 's' : ''} Gatling</strong>` : '');
+
+    const rows = nodes.map(node => {
+      const hasStats = node.hasStats;
+      const argPath  = escHtml(JSON.stringify(node.path));
+
+      // Le nom est cliquable pour naviguer dans le sous-répertoire
+      const nameHtml = `<a class="tree-item-name ${hasStats ? 'has-stats' : ''}"
+                           href="javascript:void(0)"
+                           onclick="loadTree(${argPath})"
+                           title="Explorer ${escHtml(node.name)}">${escHtml(node.name)}</a>`;
+      const badge    = hasStats ? '✅' : '<span style="color:#444;font-size:0.9em">📁</span>';
+
+      // Bouton "Analyser les stats Gatling" → charger le stats.json
+      const analyzeBtn = hasStats
+        ? `<button class="tree-item-btn"
+               onclick="loadFromTreeNode(${escHtml(JSON.stringify(node.statsPath))})"
+               title="Analyser les stats Gatling de ${escHtml(node.name)}">
+               Analyser les stats Gatling
+             </button>`
+        : '';
+
+      return `<li class="tree-item">${badge} ${nameHtml} ${analyzeBtn}</li>`;
+    }).join('');
+
+    listHtml = `<p class="tree-summary">${summary}</p><ul class="tree-list">${rows}</ul>`;
+  }
+
+  container.innerHTML = listHtml;
+}
+
+/**
+ * Charge un stats.json via /api/stats?path=... et affiche les résultats.
+ * Appelé depuis un bouton "Analyser" de l'arborescence.
+ */
+async function loadFromTreeNode(statsPath) {
+  const url = '/api/stats?path=' + encodeURIComponent(statsPath);
+  showStatus('Chargement de ' + statsPath + '…', 'info');
+  clearMain();
+
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      showStatus('Erreur : ' + (err.error || resp.statusText), 'error');
+      showEmpty();
+      return;
+    }
+    const data = await resp.json();
+    currentSrc  = url;
+    isLocalFile = false;
+    processData(data);
+    // Scroller vers les résultats sans masquer l'arborescence
+    document.getElementById('main-content').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    showStatus('Erreur réseau : ' + e.message, 'error');
+    showEmpty();
+  }
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -650,3 +810,9 @@ document.getElementById('stats-url').addEventListener('keydown', e => {
    INIT — lecture des paramètres URL au démarrage
    ════════════════════════════════════════════════════════════════ */
 initFromUrlParams();
+
+// Charger l'arborescence automatiquement au démarrage (onglet par défaut)
+const _initParams = new URLSearchParams(window.location.search);
+if (!_initParams.get('src')) {
+  loadTree();
+}

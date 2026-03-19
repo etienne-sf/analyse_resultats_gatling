@@ -90,6 +90,51 @@
     .band-row td { color: #b0b8c8; font-style: italic; }
     .no-stats { padding: 1rem; color: #555; }
 
+    /* ── Onglet Arborescence ── */
+    #tree-bar { display: none; padding: 0.75rem 2rem; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    #tree-bar.active { display: flex; }
+    #tree-root-input { flex: 1; min-width: 300px; padding: 0.5rem 0.8rem; border-radius: 6px; border: 1px solid #3a3d50; background: #1e2135; color: #e0e0e0; font-size: 0.95rem; }
+    #tree-root-input:focus { outline: none; border-color: #ff6b35; }
+    #tree-container { padding: 0.5rem 2rem 1rem; display: none; }
+    #tree-container.active { display: block; }
+
+    /* Barre de navigation (fil d'Ariane + bouton parent) */
+    .tree-nav-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+                    padding: 0.5rem 0 0.75rem; border-bottom: 1px solid #2a2d3e; margin-bottom: 0.6rem; }
+    /* Fil d'Ariane permanent (toujours visible après chargement) */
+    #tree-nav-sticky { display: none; background: #141622; border-bottom: 1px solid #2a2d3e;
+                       padding: 0.45rem 2rem; }
+    #tree-nav-sticky.active { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .tree-breadcrumb { display: flex; align-items: center; flex-wrap: wrap; gap: 0.15rem;
+                       font-size: 0.82rem; flex: 1; min-width: 0; }
+    .bc-seg { color: #8899bb; white-space: nowrap; padding: 0.15rem 0.2rem; }
+    .bc-seg.bc-current { color: #dde4f0; font-weight: 600; }
+    .bc-link { color: #ff6b35; text-decoration: none; border-radius: 3px; transition: background 0.1s; }
+    .bc-link:hover { text-decoration: underline; }
+    .bc-sep { color: #444; padding: 0 0.1rem; font-size: 0.75rem; }
+    .tree-nav-btn { padding: 0.25rem 0.75rem; border-radius: 4px; border: 1px solid #3a3d50;
+                    background: #1e2135; color: #aaa; font-size: 0.8rem; cursor: pointer;
+                    transition: border-color 0.12s, color 0.12s; white-space: nowrap; }
+    .tree-nav-btn:hover { border-color: #ff6b35; color: #ff6b35; }
+
+    /* Liste des répertoires */
+    .tree-summary { font-size: 0.8rem; color: #555; padding: 0 0 0.4rem; }
+    .tree-list { list-style: none; padding: 0; margin: 0; }
+    .tree-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.4rem;
+                 border-bottom: 1px solid #1a1d2e; border-radius: 4px; }
+    .tree-item:hover { background: #1e2135; }
+    .tree-item-name { flex: 1; font-family: 'Consolas', monospace; color: #666; font-size: 0.85rem;
+                      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                      text-decoration: none; cursor: pointer; }
+    .tree-item-name:hover { color: #ff6b35; text-decoration: underline; }
+    .tree-item-name.has-stats { color: #dde4f0; font-weight: 500; }
+    .tree-item-btn { padding: 0.22rem 0.75rem; border-radius: 4px; border: 1px solid #ff6b35;
+                     background: transparent; color: #ff6b35; font-size: 0.78rem; font-weight: 600;
+                     cursor: pointer; transition: background 0.12s, color 0.12s; white-space: nowrap; }
+    .tree-item-btn:hover { background: #ff6b35; color: #fff; }
+    .tree-empty { color: #555; font-size: 0.88rem; padding: 1rem 0; }
+    .tree-error { color: #e74c3c; font-size: 0.88rem; padding: 1rem 0; }
+
     /* ── Empty state ── */
     #empty { display: none; text-align: center; padding: 4rem 2rem; color: #555; }
     #empty svg { opacity: 0.25; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto; }
@@ -114,17 +159,17 @@
 
 <div id="source-bar">
   <div class="tab-strip">
+    <button class="tab-btn active" onclick="switchTab('tree')">🗂️ Arborescence</button>
+    <button class="tab-btn" onclick="switchTab('file')">📂 Fichier local</button>
     <button class="tab-btn" onclick="switchTab('url')">🌐 URL</button>
-    <button class="tab-btn active" onclick="switchTab('file')">📂 Fichier local</button>
   </div>
-  <div class="tab-panel" id="url-bar">
-    <label for="stats-url">URL du fichier stats.json :</label>
-    <input type="text" id="stats-url"
-      placeholder="http://localhost:8080/results/simulation/js/stats.json"
-      value="" autocomplete="off" spellcheck="false" />
-    <button class="load-btn" id="load-btn-url" onclick="loadFromUrl()">Charger</button>
+  <!-- Onglet Arborescence (nécessite server.py) -->
+  <div class="tab-panel active" id="tree-bar">
+    <label for="tree-root-input">Répertoire racine Gatling :</label>
+    <input type="text" id="tree-root-input" placeholder="Chargement du chemin par défaut…" autocomplete="off" spellcheck="false" />
+    <button class="load-btn" onclick="loadTree()">Parcourir</button>
   </div>
-  <div class="tab-panel active" id="file-bar">
+  <div class="tab-panel" id="file-bar">
     <label>Fichier stats.json local :</label>
     <div id="drop-zone"
          onclick="document.getElementById('file-input').click()"
@@ -136,7 +181,20 @@
     <input type="file" id="file-input" accept=".json,application/json" onchange="onFileSelected(event)" />
     <button class="load-btn" id="load-btn-file" onclick="loadFromFile()" disabled>Charger</button>
   </div>
+  <div class="tab-panel" id="url-bar">
+    <label for="stats-url">URL du fichier stats.json :</label>
+    <input type="text" id="stats-url"
+      placeholder="http://localhost:8080/results/simulation/js/stats.json"
+      value="" autocomplete="off" spellcheck="false" />
+    <button class="load-btn" id="load-btn-url" onclick="loadFromUrl()">Charger</button>
+  </div>
 </div>
+
+<!-- Fil d'Ariane permanent : toujours visible une fois l'arborescence chargée -->
+<div id="tree-nav-sticky"></div>
+
+<!-- Liste des sous-répertoires (masquée quand on est sur un autre onglet) -->
+<div id="tree-container"></div>
 
 <div id="status"></div>
 
