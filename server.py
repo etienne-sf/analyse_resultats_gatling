@@ -24,6 +24,7 @@ Usage :
 import http.server
 import json
 import os
+import re
 import sys
 import urllib.parse
 from pathlib import Path
@@ -60,20 +61,24 @@ def _tree(root: Path) -> List[Dict[str, Any]]:
 
     Chaque nœud :
         {
-          "name": str,          # nom du répertoire
-          "path": str,          # chemin absolu
-          "hasStats": bool,     # js/stats.json existe ?
-          "statsPath": str|None # chemin absolu du stats.json si hasStats
+          "name": str,              # nom du répertoire
+          "path": str,              # chemin absolu
+          "hasStats": bool,         # js/stats.json existe ?
+          "statsPath": str|None,    # chemin absolu du stats.json si hasStats
+          "gatlingDate": str|None   # date/heure ISO 8601 si le nom se termine par -yyyyMMddHHmmssSSS
         }
 
-    Les entrées sont triées par nom décroissant (simulations récentes en tête).
+    Les entrées sont triées par nom alphabétique croissant.
     """
+    # Regex : 17 chiffres en fin de nom  aaaaMM jj HH mm ss SSS
+    _DATE_RE = re.compile(r"-(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(\d{3})$")
+
     if not root.is_dir():
         return []
 
     nodes = []
     try:
-        entries = sorted(root.iterdir(), key=lambda p: p.name, reverse=True)
+        entries = sorted(root.iterdir(), key=lambda p: p.name)
     except PermissionError:
         return []
 
@@ -82,11 +87,24 @@ def _tree(root: Path) -> List[Dict[str, Any]]:
             continue
         stats_json = entry / "js" / "stats.json"
         has_stats = stats_json.is_file()
+
+        # Tentative de parsing de la date Gatling dans le nom
+        m = _DATE_RE.search(entry.name)
+        gatling_date: Optional[str] = None
+        if m:
+            year, month, day, hour, minute, second, ms = (int(x) for x in m.groups())
+            # Construire une chaîne ISO 8601 UTC que le JS pourra parser
+            gatling_date = (
+                f"{year:04d}-{month:02d}-{day:02d}"
+                f"T{hour:02d}:{minute:02d}:{second:02d}.{ms:03d}Z"
+            )
+
         nodes.append({
-            "name": entry.name,
-            "path": str(entry),
-            "hasStats": has_stats,
-            "statsPath": str(stats_json) if has_stats else None,
+            "name":        entry.name,
+            "path":        str(entry),
+            "hasStats":    has_stats,
+            "statsPath":   str(stats_json) if has_stats else None,
+            "gatlingDate": gatling_date,
         })
 
     return nodes

@@ -92,6 +92,7 @@ async function loadTree(rootOverride) {
 }
 
 /**
+/**
  * Génère le HTML de la navigation + liste des simulations et l'injecte dans container.
  */
 function renderTree(container, data) {
@@ -137,11 +138,16 @@ function renderTree(container, data) {
       const hasStats = node.hasStats;
       const argPath  = escHtml(JSON.stringify(node.path));
 
+      // Date Gatling formatée en heure de Paris si disponible
+      const dateHtml = node.gatlingDate
+        ? ` <span class="tree-item-date">(${fmtGatlingDate(node.gatlingDate)})</span>`
+        : '';
+
       // Le nom est cliquable pour naviguer dans le sous-répertoire
       const nameHtml = `<a class="tree-item-name ${hasStats ? 'has-stats' : ''}"
                            href="javascript:void(0)"
                            onclick="loadTree(${argPath})"
-                           title="Explorer ${escHtml(node.name)}">${escHtml(node.name)}</a>`;
+                           title="Explorer ${escHtml(node.name)}">${escHtml(node.name)}</a>${dateHtml}`;
       const badge    = hasStats ? '✅' : '<span style="color:#444;font-size:0.9em">📁</span>';
 
       // Bouton "Analyser les stats Gatling" → charger le stats.json
@@ -160,6 +166,30 @@ function renderTree(container, data) {
   }
 
   container.innerHTML = listHtml;
+}
+
+/**
+ * Formate une date ISO 8601 UTC (ex: "2026-03-17T15:46:25.883Z")
+ * en chaîne lisible sur le fuseau Europe/Paris.
+ * Ex: "17/03/2026 16:46:25"
+ * @param {string} isoUtc
+ * @returns {string}
+ */
+function fmtGatlingDate(isoUtc) {
+  try {
+    const d = new Date(isoUtc);
+    return d.toLocaleString('fr-FR', {
+      timeZone: 'Europe/Paris',
+      day:    '2-digit',
+      month:  '2-digit',
+      year:   'numeric',
+      hour:   '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+  } catch {
+    return isoUtc;
+  }
 }
 
 /**
