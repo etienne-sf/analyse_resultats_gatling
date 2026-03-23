@@ -28,7 +28,7 @@ vm.runInThisContext(appCode);
 /* ── Charger le JSON de test ── */
 const data = JSON.parse(
   fs.readFileSync(
-    'X:/git/tests-de-charge/target/gatling/testunitaire-20260317165913824/js/stats.json',
+    'X:/git/tests-de-charge/target/gatling/scenariounitaire-20260320160658454/js/stats.json',
     'utf8'
   )
 );
@@ -111,6 +111,45 @@ if (loupeCount !== level1.length || navigateCount !== level1.length) {
   errors++;
 } else {
   console.log('   Tous les liens loupe sont présents ✅');
+}
+
+/* ════ TEST 6 : jsArg — attribut onclick valide ════ */
+console.log('\n✅ TEST 6 — jsArg');
+const pathWin   = 'X:\\git\\gatling\\results';
+const pathUnix  = '/home/user/gatling/résultats & tests';
+const pathQuote = 'dir with "quotes"';
+
+let t6errors = 0;
+for (const [label, val] of [['chemin Windows', pathWin], ['chemin Unix+accents+&', pathUnix], ['guillemets', pathQuote]]) {
+  const arg = jsArg(val);
+  // 1) Ne doit pas contenir de " brut (casserait l'attribut HTML)
+  if (arg.includes('"')) {
+    console.error(`   ❌ jsArg(${label}) contient des guillemets bruts : ${arg}`);
+    t6errors++;
+  }
+  // 2) &quot; doit être présent (délimite la chaîne JSON)
+  if (!arg.includes('&quot;')) {
+    console.error(`   ❌ jsArg(${label}) ne contient pas &quot; : ${arg}`);
+    t6errors++;
+  }
+  // 3) Simuler le décodage HTML (comme le ferait le parser du navigateur) → doit être du JSON valide
+  const decoded = arg.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+  try {
+    const parsed = JSON.parse(decoded);
+    if (parsed !== val) {
+      console.error(`   ❌ jsArg(${label}) : valeur après décodage HTML != valeur originale`);
+      t6errors++;
+    }
+  } catch (e) {
+    console.error(`   ❌ jsArg(${label}) : JSON invalide après décodage HTML : ${decoded}`);
+    t6errors++;
+  }
+  console.log(`   jsArg(${label}) = ${arg}`);
+}
+if (t6errors === 0) {
+  console.log('   Tous les jsArg sont valides ✅');
+} else {
+  errors += t6errors;
 }
 
 /* ════ RÉSUMÉ ════ */

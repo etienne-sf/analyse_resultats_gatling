@@ -97,6 +97,16 @@
     #tree-root-input:focus { outline: none; border-color: #ff6b35; }
     #tree-container { padding: 0.5rem 2rem 1rem; display: none; }
     #tree-container.active { display: block; }
+    /* ── Onglet Arborescence FTP ── */
+    #ftp-bar { display: none; padding: 0.75rem 2rem; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    #ftp-bar.active { display: flex; }
+    #ftp-path-input { flex: 1; min-width: 300px; padding: 0.5rem 0.8rem; border-radius: 6px; border: 1px solid #3a3d50; background: #1e2135; color: #e0e0e0; font-size: 0.95rem; }
+    #ftp-path-input:focus { outline: none; border-color: #ff6b35; }
+    #ftp-container { padding: 0.5rem 2rem 1rem; display: none; }
+    #ftp-container.active { display: block; }
+    #ftp-status-badge { font-size: 0.78rem; color: #6677aa; white-space: nowrap; }
+    #ftp-nav-sticky { display: none; background: #141622; border-bottom: 1px solid #2a2d3e; padding: 0.45rem 2rem; }
+    #ftp-nav-sticky.active { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
 
     /* Barre de navigation (fil d'Ariane + bouton parent) */
     .tree-nav-bar { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
@@ -160,15 +170,23 @@
 
 <div id="source-bar">
   <div class="tab-strip">
-    <button class="tab-btn active" onclick="switchTab('tree')">🗂️ Arborescence</button>
+    <button class="tab-btn active" onclick="switchTab('tree')">🗂️ Arborescence locale</button>
+    <button class="tab-btn" onclick="switchTab('ftp')">🌐 Arborescence FTP</button>
     <button class="tab-btn" onclick="switchTab('file')">📂 Fichier local</button>
-    <button class="tab-btn" onclick="switchTab('url')">🌐 URL</button>
+    <button class="tab-btn" onclick="switchTab('url')">🔗 URL</button>
   </div>
-  <!-- Onglet Arborescence (nécessite server.py) -->
+  <!-- Onglet Arborescence locale (nécessite server.py) -->
   <div class="tab-panel active" id="tree-bar">
     <label for="tree-root-input">Répertoire racine Gatling :</label>
     <input type="text" id="tree-root-input" placeholder="Chargement du chemin par défaut…" autocomplete="off" spellcheck="false" />
     <button class="load-btn" onclick="loadTree()">Parcourir</button>
+  </div>
+  <!-- Onglet Arborescence FTP (nécessite server.py + .env configuré) -->
+  <div class="tab-panel" id="ftp-bar">
+    <label for="ftp-path-input">Répertoire distant :</label>
+    <input type="text" id="ftp-path-input" placeholder="Chargement…" autocomplete="off" spellcheck="false" />
+    <button class="load-btn" onclick="loadTreeFtp()">Parcourir</button>
+    <span id="ftp-status-badge"></span>
   </div>
   <div class="tab-panel" id="file-bar">
     <label>Fichier stats.json local :</label>
@@ -194,8 +212,14 @@
 <!-- Fil d'Ariane permanent : toujours visible une fois l'arborescence chargée -->
 <div id="tree-nav-sticky"></div>
 
-<!-- Liste des sous-répertoires (masquée quand on est sur un autre onglet) -->
+<!-- Liste des sous-répertoires locaux -->
 <div id="tree-container"></div>
+
+<!-- Fil d'Ariane FTP permanent -->
+<div id="ftp-nav-sticky"></div>
+
+<!-- Liste des sous-répertoires FTP -->
+<div id="ftp-container"></div>
 
 <div id="status"></div>
 

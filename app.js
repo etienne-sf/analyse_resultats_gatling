@@ -13,6 +13,10 @@ let bandLabels = ['< 800 ms', '800–1200 ms', '≥ 1200 ms', 'Échec'];
 // URL du stats.json en cours (pour générer les liens de détail)
 let currentSrc = '';
 
+// Cache FTP côté navigateur : remotePath → parsed JSON object
+// Évite un round-trip HTTP vers server.py si le fichier a déjà été chargé.
+const _ftpStatsCache = new Map();
+
 // true quand la source est un fichier local (File API) — les liens naviguent dans la page
 let isLocalFile = false;
 
@@ -24,23 +28,31 @@ let detailGroup = null;
    TABS
    ════════════════════════════════════════════════════════════════ */
 function switchTab(tab) {
-  const tabs = ['tree', 'file', 'url'];
+  const tabs = ['tree', 'ftp', 'file', 'url'];
   document.querySelectorAll('.tab-btn').forEach((btn, i) => {
     btn.classList.toggle('active', tabs[i] === tab);
   });
   document.getElementById('url-bar').classList.toggle('active', tab === 'url');
   document.getElementById('file-bar').classList.toggle('active', tab === 'file');
   document.getElementById('tree-bar').classList.toggle('active', tab === 'tree');
-  // La liste des répertoires se masque/affiche avec l'onglet
-  // mais #tree-nav-sticky reste visible en permanence s'il est chargé
+  document.getElementById('ftp-bar').classList.toggle('active', tab === 'ftp');
+  // Conteneurs arborescences
   const treeContainer = document.getElementById('tree-container');
+  const ftpContainer  = document.getElementById('ftp-container');
   if (tab === 'tree') {
     treeContainer.classList.add('active');
-    // Charger l'arbre automatiquement à la 1ère ouverture de l'onglet
     if (!treeContainer.dataset.loaded) loadTree();
   } else {
     treeContainer.classList.remove('active');
   }
+  if (tab === 'ftp') {
+    ftpContainer.classList.add('active');
+    if (!ftpContainer.dataset.loaded) loadTreeFtp();
+  } else {
+    ftpContainer.classList.remove('active');
+  }
+  // Effacer les résultats d'analyse lors d'un changement d'onglet
+  clearResults();
 }
 
 /* ════════════════════════════════════════════════════════════════
@@ -60,6 +72,9 @@ async function loadTree(rootOverride) {
   const container = document.getElementById('tree-container');
   container.classList.add('active');
   container.dataset.loaded = '1';
+
+  // Navigation de répertoire → effacer les résultats en cours
+  clearResults();
 
   const rootVal = rootOverride !== undefined
     ? (rootOverride || '')
@@ -105,7 +120,7 @@ function renderTree(container, data) {
     if (isLast) {
       return `<span class="bc-seg bc-current">${escHtml(c.name)}</span>`;
     }
-    const arg = escHtml(JSON.stringify(c.path));
+    const arg = jsArg(c.path);
     return `<a class="bc-seg bc-link" href="javascript:void(0)"
                onclick="loadTree(${arg})">${escHtml(c.name)}</a>`;
   }).join('<span class="bc-sep">›</span>');
@@ -113,7 +128,7 @@ function renderTree(container, data) {
   // ── Bouton "Répertoire parent" ──
   const parentHtml = data.parent
     ? (() => {
-        const arg = escHtml(JSON.stringify(data.parent));
+        const arg = jsArg(data.parent);
         return `<button class="tree-nav-btn" onclick="loadTree(${arg})" title="Répertoire parent">
                   ⬆ Parent
                 </button>`;
@@ -136,7 +151,7 @@ function renderTree(container, data) {
 
     const rows = nodes.map(node => {
       const hasStats = node.hasStats;
-      const argPath  = escHtml(JSON.stringify(node.path));
+      const argPath  = jsArg(node.path);
 
       // Date Gatling formatée en heure de Paris si disponible
       const dateHtml = node.gatlingDate
@@ -153,7 +168,7 @@ function renderTree(container, data) {
       // Bouton "Analyser les stats Gatling" → charger le stats.json
       const analyzeBtn = hasStats
         ? `<button class="tree-item-btn"
-               onclick="loadFromTreeNode(${escHtml(JSON.stringify(node.statsPath))})"
+               onclick="loadFromTreeNode(${jsArg(node.statsPath)})"
                title="Analyser les stats Gatling de ${escHtml(node.name)}">
                Analyser les stats Gatling
              </button>`
@@ -214,6 +229,172 @@ async function loadFromTreeNode(statsPath) {
     isLocalFile = false;
     processData(data);
     // Scroller vers les résultats sans masquer l'arborescence
+    document.getElementById('main-content').scrollIntoView({ behavior: 'smooth' });
+  } catch (e) {
+    showStatus('Erreur réseau : ' + e.message, 'error');
+    showEmpty();
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   ARBORESCENCE FTP (requiert server.py + .env configuré)
+   ════════════════════════════════════════════════════════════════ */
+
+/**
+ * Charge la liste FTP depuis /api/ftp/tree et l'affiche.
+ * @param {string|null} pathOverride  Chemin distant à charger (sinon lit #ftp-path-input).
+ */
+async function loadTreeFtp(pathOverride) {
+  const input     = document.getElementById('ftp-path-input');
+  const container = document.getElementById('ftp-container');
+  container.classList.add('active');
+  container.dataset.loaded = '1';
+
+  // Navigation de répertoire → effacer les résultats en cours
+  clearResults();
+
+  // Au premier chargement, récupérer la config pour pré-remplir le champ
+  if (!input.dataset.initialized) {
+    try {
+      const cfgResp = await fetch('/api/config/ftp');
+      if (cfgResp.ok) {
+        const cfg = await cfgResp.json();
+        const badge = document.getElementById('ftp-status-badge');
+        if (cfg.configured) {
+          if (!input.value) input.value = cfg.remoteDir || '/';
+          if (badge) badge.textContent = `${cfg.protocol.toUpperCase()} · ${cfg.user}@${cfg.host}:${cfg.port}`;
+        } else {
+          container.innerHTML =
+            '<p class="tree-error">FTP non configuré.<br>' +
+            'Renseignez <code>FTP_HOST</code>, <code>FTP_USER</code>, <code>FTP_PASSWORD</code> dans <code>.env</code>.</p>';
+          if (badge) badge.textContent = '⚠️ non configuré';
+          return;
+        }
+      }
+    } catch { /* server.py non lancé — l'erreur sera affichée ci-dessous */ }
+    input.dataset.initialized = '1';
+  }
+
+  const pathVal = pathOverride !== undefined
+    ? (pathOverride || '/')
+    : (input.value.trim() || '/');
+
+  const url = '/api/ftp/tree?path=' + encodeURIComponent(pathVal);
+  container.innerHTML = '<p class="tree-empty" style="padding:1rem 0">Connexion FTP…</p>';
+
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      container.innerHTML = `<p class="tree-error">Erreur FTP : ${escHtml(err.error || resp.statusText)}</p>`;
+      return;
+    }
+    const data = await resp.json();
+    if (input) input.value = data.root || pathVal;
+    renderTreeFtp(container, data);
+  } catch (e) {
+    container.innerHTML =
+      `<p class="tree-error">Impossible de contacter le serveur.<br>` +
+      `Lancez <code>python server.py</code> depuis le répertoire du projet.</p>`;
+  }
+}
+
+/**
+ * Génère le HTML de l'arborescence FTP et l'injecte dans container.
+ * Réutilise les mêmes classes CSS que renderTree().
+ */
+function renderTreeFtp(container, data) {
+  const nodes  = data.nodes  || [];
+  const crumbs = data.breadcrumb || [];
+
+  // ── Fil d'Ariane FTP permanent ──
+  const crumbHtml = crumbs.map((c, i) => {
+    const isLast = i === crumbs.length - 1;
+    if (isLast) return `<span class="bc-seg bc-current">${escHtml(c.name)}</span>`;
+    const arg = jsArg(c.path);
+    return `<a class="bc-seg bc-link" href="javascript:void(0)"
+               onclick="loadTreeFtp(${arg})">${escHtml(c.name)}</a>`;
+  }).join('<span class="bc-sep">›</span>');
+
+  const parentHtml = data.parent
+    ? (() => {
+        const arg = jsArg(data.parent);
+        return `<button class="tree-nav-btn" onclick="loadTreeFtp(${arg})" title="Répertoire parent">⬆ Parent</button>`;
+      })()
+    : '';
+
+  const navSticky = document.getElementById('ftp-nav-sticky');
+  navSticky.innerHTML = `<nav class="tree-breadcrumb">${crumbHtml}</nav>${parentHtml}`;
+  navSticky.classList.add('active');
+
+  // ── Liste ──
+  if (nodes.length === 0) {
+    container.innerHTML = '<p class="tree-empty">Aucun sous-répertoire dans ce dossier.</p>';
+    return;
+  }
+
+  const statsCount = nodes.filter(n => n.hasStats).length;
+  const summary = `${nodes.length} répertoire${nodes.length > 1 ? 's' : ''}`
+    + (statsCount ? ` · <strong style="color:#2ecc71">${statsCount} simulation${statsCount > 1 ? 's' : ''} Gatling</strong>` : '');
+
+  const rows = nodes.map(node => {
+    const hasStats = node.hasStats;
+    const argPath  = jsArg(node.path);
+    const dateHtml = node.gatlingDate
+      ? ` <span class="tree-item-date">(${fmtGatlingDate(node.gatlingDate)})</span>`
+      : '';
+    const nameHtml = `<a class="tree-item-name ${hasStats ? 'has-stats' : ''}"
+                         href="javascript:void(0)"
+                         onclick="loadTreeFtp(${argPath})"
+                         title="Explorer ${escHtml(node.name)}">${escHtml(node.name)}</a>${dateHtml}`;
+    const badge = hasStats ? '✅' : '<span style="color:#444;font-size:0.9em">📁</span>';
+    const analyzeBtn = hasStats
+      ? `<button class="tree-item-btn"
+             onclick="loadFromFtpNode(${jsArg(node.statsPath)})"
+             title="Analyser les stats Gatling de ${escHtml(node.name)}">
+             Analyser les stats Gatling
+           </button>`
+      : '';
+    return `<li class="tree-item">${badge} ${nameHtml} ${analyzeBtn}</li>`;
+  }).join('');
+
+  container.innerHTML = `<p class="tree-summary">${summary}</p><ul class="tree-list">${rows}</ul>`;
+}
+
+/**
+ * Charge un stats.json via /api/ftp/stats?path=... et affiche les résultats.
+ * Le JSON est mis en cache (_ftpStatsCache) pour éviter tout aller-retour FTP
+ * si l'utilisateur revient sur la même simulation.
+ */
+async function loadFromFtpNode(remotePath) {
+  // ── Cache hit : pas de requête HTTP ──
+  if (_ftpStatsCache.has(remotePath)) {
+    showStatus('', 'info');
+    clearMain();
+    currentSrc  = '/api/ftp/stats?path=' + encodeURIComponent(remotePath);
+    isLocalFile = false;
+    processData(_ftpStatsCache.get(remotePath));
+    document.getElementById('main-content').scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+
+  // ── Cache miss : appel HTTP → server.py → FTP (stats.json déjà en cache serveur) ──
+  const url = '/api/ftp/stats?path=' + encodeURIComponent(remotePath);
+  showStatus('Chargement FTP de ' + remotePath + '…', 'info');
+  clearMain();
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ error: resp.statusText }));
+      showStatus('Erreur FTP : ' + (err.error || resp.statusText), 'error');
+      showEmpty();
+      return;
+    }
+    const data = await resp.json();
+    _ftpStatsCache.set(remotePath, data);   // mise en cache JS
+    currentSrc  = url;
+    isLocalFile = false;
+    processData(data);
     document.getElementById('main-content').scrollIntoView({ behavior: 'smooth' });
   } catch (e) {
     showStatus('Erreur réseau : ' + e.message, 'error');
@@ -574,7 +755,7 @@ function renderTableSection(title, reqs, showDetailLink, getDetailGroupName) {
             : `Voir les sous-requ\u00eates de ${escHtml(req.name)}`;
           if (href && href.startsWith('local:')) {
             // Mode fichier local : navigation dans la page
-            const arg = escHtml(JSON.stringify(groupName));
+            const arg = jsArg(groupName);
             display = `<a href="javascript:void(0)" title="${ttl}" onclick="event.stopPropagation();navigateTo(${arg})">&#x1F50D;</a>`;
           } else if (href) {
             // Mode URL : nouvel onglet
@@ -786,6 +967,19 @@ function clearMain() {
   document.getElementById('main-content').innerHTML = '';
   document.getElementById('empty').style.display = 'none';
 }
+/**
+ * Efface les résultats d'analyse (table + toolbar + status) sans toucher
+ * aux arborescences ni aux onglets. Appelé lors d'un changement d'onglet
+ * ou d'une navigation dans une arborescence.
+ */
+function clearResults() {
+  clearMain();
+  hideStatus();
+  document.getElementById('toolbar').style.display = 'none';
+  allRequests = [];
+  currentSrc  = '';
+  detailGroup = null;
+}
 function showEmpty() {
   document.getElementById('main-content').innerHTML = '';
   document.getElementById('empty').style.display = 'block';
@@ -823,6 +1017,20 @@ function cmpStr(a, b) {
 }
 function escHtml(str) {
   return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/**
+ * Sérialise une valeur en argument JS utilisable dans un attribut onclick HTML.
+ * JSON.stringify produit des guillemets doubles " qui doivent être encodés en &quot;
+ * pour ne pas casser l'attribut HTML (le parser HTML les décode avant d'évaluer le JS).
+ * Encode aussi & < > pour la sécurité HTML.
+ */
+function jsArg(val) {
+  return JSON.stringify(val)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
