@@ -28,7 +28,7 @@ vm.runInThisContext(appCode);
 /* ── Charger le JSON de test ── */
 const data = JSON.parse(
   fs.readFileSync(
-    'X:/git/tests-de-charge/target/gatling/scenariounitaire-20260320160658454/js/stats.json',
+    'X:/git/tests-de-charge/target/gatling/testunitaire-20260324064013701/js/stats.json',
     'utf8'
   )
 );
@@ -93,24 +93,50 @@ console.log('   Entrée  :', xss);
 console.log('   Sortie  :', escaped);
 console.assert(!escaped.includes('<script>'), 'escHtml doit échapper <');
 
-/* ════ TEST 5 : lien loupe en mode fichier local ════ */
+/* ════ TEST 5 : loupe (modale stats) et triangle (enfants inline) ════ */
 isLocalFile = true;
 currentSrc  = 'stats.json';
 detailGroup = null;
 processData(data);
 const level1 = allRequests.filter(r => r.groupPath === 'All Requests');
-const htmlSection = renderTableSection('All requests', level1, true, req => req.name);
-const loupeCount = (htmlSection.match(/&#x1F50D;/g) || []).length;
-const navigateCount = (htmlSection.match(/navigateTo\(/g) || []).length;
-console.log('\n✅ TEST 5 — loupe en mode fichier local');
-console.log('   Lignes All requests :', level1.length);
-console.log('   Loupes générées :', loupeCount);
-console.log('   Appels navigateTo :', navigateCount);
-if (loupeCount !== level1.length || navigateCount !== level1.length) {
-  console.error('   ❌ Nombre de loupes incorrect !');
-  errors++;
+const htmlSection = renderTableSection('All requests', level1);
+// La loupe doit appeler openStatsModal (stats détaillées) — une par ligne visible + enfants inline
+const loupeCount  = (htmlSection.match(/&#x1F50D;/g) || []).length;
+const modalCount  = (htmlSection.match(/openStatsModal\(/g) || []).length;
+// Le triangle doit appeler toggleRow (enfants du groupe)
+const toggleCount = (htmlSection.match(/toggleRow\(/g) || []).length;
+// Les lignes ayant des enfants dans allRequests
+const withChildren = level1.filter(req => {
+  const childPath = 'All Requests \u203a ' + req.name;
+  return allRequests.some(r => r.groupPath === childPath);
+}).length;
+// Total des lignes rendues (level1 + leurs enfants directs)
+const totalRendered = level1.reduce((acc, req) => {
+  const childPath = 'All Requests \u203a ' + req.name;
+  const kids = allRequests.filter(r => r.groupPath === childPath).length;
+  return acc + 1 + kids;
+}, 0);
+console.log('\n✅ TEST 5 — loupe (modale) et triangle (enfants inline)');
+console.log('   Lignes All requests :', level1.length, '— total rendu (avec enfants) :', totalRendered);
+console.log('   Loupes (openStatsModal) :', loupeCount, '/', modalCount);
+console.log('   Triangles (toggleRow) :', toggleCount, '— groupes avec enfants :', withChildren);
+let t5errors = 0;
+if (loupeCount !== totalRendered) {
+  console.error('   ❌ Nombre de loupes incorrect :', loupeCount, '!==', totalRendered);
+  t5errors++;
+}
+if (modalCount !== totalRendered) {
+  console.error('   ❌ Nombre de openStatsModal incorrect :', modalCount, '!==', totalRendered);
+  t5errors++;
+}
+if (toggleCount !== withChildren) {
+  console.error('   ❌ Nombre de toggleRow incorrect :', toggleCount, '!==', withChildren);
+  t5errors++;
+}
+if (t5errors === 0) {
+  console.log('   Loupe → modale stats, triangle → enfants inline ✅');
 } else {
-  console.log('   Tous les liens loupe sont présents ✅');
+  errors += t5errors;
 }
 
 /* ════ TEST 6 : jsArg — attribut onclick valide ════ */

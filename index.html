@@ -150,6 +150,22 @@
     #empty { display: none; text-align: center; padding: 4rem 2rem; color: #555; }
     #empty svg { opacity: 0.25; margin-bottom: 1rem; display: block; margin-left: auto; margin-right: auto; }
 
+    /* ── Modale stats ── */
+    #stats-modal { display: none; position: fixed; inset: 0; z-index: 1000;
+                   background: rgba(0,0,0,0.72); align-items: center; justify-content: center; }
+    #stats-modal.open { display: flex; }
+    #stats-modal-panel { background: #1a1d2e; border: 1px solid #2a2d3e; border-radius: 10px;
+                         max-width: 760px; width: 94vw; max-height: 88vh; display: flex;
+                         flex-direction: column; box-shadow: 0 8px 40px rgba(0,0,0,0.7); }
+    #stats-modal-header { display: flex; align-items: center; justify-content: space-between;
+                          padding: 0.85rem 1.2rem; border-bottom: 1px solid #2a2d3e; }
+    #stats-modal-title { font-size: 0.95rem; font-weight: 700; color: #dde4f0;
+                         white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 90%; }
+    #stats-modal-close { background: none; border: none; color: #666; font-size: 1.3rem;
+                         cursor: pointer; line-height: 1; padding: 0 0.3rem; transition: color 0.15s; }
+    #stats-modal-close:hover { color: #ff6b35; }
+    #stats-modal-body { overflow-y: auto; padding: 0.5rem 0; }
+
     /* ── Footer ── */
     footer { text-align: center; font-size: 0.78rem; color: #444; padding: 2rem; border-top: 1px solid #1e2135; margin-top: 2rem; }
 
@@ -234,6 +250,17 @@
     <path d="M9 17H7A5 5 0 0 1 7 7h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8"/>
   </svg>
   <p>Aucun résultat. Saisissez l’URL d’un fichier <code>stats.json</code> Gatling et cliquez sur « Charger ».</p>
+</div>
+
+<!-- Modale stats détaillées (loupe) -->
+<div id="stats-modal" onclick="if(event.target===this)closeStatsModal()">
+  <div id="stats-modal-panel">
+    <div id="stats-modal-header">
+      <span id="stats-modal-title"></span>
+      <button id="stats-modal-close" onclick="closeStatsModal()" title="Fermer">✕</button>
+    </div>
+    <div id="stats-modal-body"></div>
+  </div>
 </div>
 
 <main id="main-content"></main>

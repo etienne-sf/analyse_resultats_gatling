@@ -584,7 +584,7 @@ function walkNode(node, groupPath) {
 
 // Column definitions: { id, label, getValue(req) → number|string, fmt? }
 const COLUMNS = [
-  { id: 'detail', label: '',          getValue: r => r.name },  // lien détail (remplace Type)
+  { id: 'detail', label: '',          getValue: r => r.name },  // loupe stats (col fixe)
   { id: 'name',   label: 'Nom',       getValue: r => r.name },
   { id: 'total',  label: 'Total',     getValue: r => numVal(r, 'numberOfRequests', 'total') },
   { id: 'ok',     label: 'OK',        getValue: r => numVal(r, 'numberOfRequests', 'ok') },
@@ -666,28 +666,6 @@ function renderAll() {
   empty.style.display = 'none';
   toolbar.style.display = 'flex';
 
-  // ── MODE DÉTAIL : afficher les requêtes enfants d'un groupe précis ──
-  if (detailGroup) {
-    // Les enfants du groupe G ont groupPath === 'All Requests › G'
-    const childPath = 'All Requests \u203a ' + detailGroup;
-    const children = allRequests.filter(r => r.groupPath === childPath);
-    const q = document.getElementById('search').value.trim().toLowerCase();
-    const filtered = q
-      ? children.filter(r => r.name.toLowerCase().includes(q) || r.groupPath.toLowerCase().includes(q))
-      : children;
-    countLabel.textContent = `${filtered.length} requête${filtered.length !== 1 ? 's' : ''}`;
-
-    // Fil d'Ariane (retour synthèse) en mode fichier local
-    const breadcrumb = isLocalFile
-      ? `<nav class="breadcrumb"><a href="javascript:void(0)" onclick="navigateTo(null)">&#x2190; Synthèse</a> › ${escHtml(detailGroup)}</nav>`
-      : '';
-
-    main.innerHTML = breadcrumb + (filtered.length > 0
-      ? renderTableSection(detailGroup, filtered, /* showDetailLink */ false, null)
-      : '<p style="padding:2rem;color:#666">Aucun résultat.</p>');
-    return;
-  }
-
   // ── MODE SYNTHÈSE : racine + groupes de niveau 1 ──
   const filtered   = getFilteredRequests();
   const displayCount = filtered.length;
@@ -697,17 +675,14 @@ function renderAll() {
   const level1Reqs = filtered.filter(r => r.groupPath === 'All Requests');
 
   let html = '';
-  if (rootReqs.length > 0)   html += renderTableSection('(Racine)', rootReqs,
-    /* showDetailLink */ true, /* getDetailGroupName */ () => null);
-  if (level1Reqs.length > 0) html += renderTableSection('All requests', level1Reqs,
-    /* showDetailLink */ true, /* getDetailGroupName */ req => req.name);
+  if (rootReqs.length > 0)   html += renderTableSection('(Racine)', rootReqs);
+  if (level1Reqs.length > 0) html += renderTableSection('All requests', level1Reqs);
 
   main.innerHTML = html;
 }
 
 /**
- * Navigation in-page pour le mode fichier local.
- * groupName = null → retour vue synthèse ; groupName = string → vue détail du groupe.
+ * Navigation in-page (conservé pour compatibilité ?group= dans les URL).
  */
 function navigateTo(groupName) {
   detailGroup = groupName;
@@ -716,12 +691,12 @@ function navigateTo(groupName) {
 
 /**
  * Renders a collapsible table section (one header row + data rows).
- * @param {string}   title              - section title
- * @param {Array}    reqs               - requests to display
- * @param {boolean}  showDetailLink     - whether to add a detail link column
- * @param {Function} getDetailGroupName - (req) => groupName string | null
+ * - Loupe  🔍 : ouvre la modale des stats détaillées (balise stats)
+ * - Triangle ▶ : déplie les sous-requêtes du groupe (balise contents) en ligne
+ * @param {string} title  - titre de la section
+ * @param {Array}  reqs   - requêtes à afficher
  */
-function renderTableSection(title, reqs, showDetailLink, getDetailGroupName) {
+function renderTableSection(title, reqs) {
   const sorted = getSortedRequests(reqs);
   const sectionId = 'sec-' + title.replace(/\W+/g, '-');
 
@@ -742,30 +717,19 @@ function renderTableSection(title, reqs, showDetailLink, getDetailGroupName) {
     const detailId = `${sectionId}-det-${idx}`;
     const ko = numVal(req, 'numberOfRequests', 'ko');
     const koClass = ko > 0 ? 'val-ko' : 'val-ok';
+
+    // Enfants du groupe (pour le triangle d'expand)
+    const childPath = 'All Requests \u203a ' + req.name;
+    const children  = allRequests.filter(r => r.groupPath === childPath);
+    const hasChildren = children.length > 0;
+
     const cells = COLUMNS.map(col => {
       const v = col.getValue(req);
       let display, cls;
       if (col.id === 'detail') {
-        // Lien de détail dans la colonne
-        if (showDetailLink) {
-          const groupName = getDetailGroupName ? getDetailGroupName(req) : req.name;
-          const href = buildDetailHref(groupName);
-          const ttl = groupName === null
-            ? 'Voir tous les groupes'
-            : `Voir les sous-requ\u00eates de ${escHtml(req.name)}`;
-          if (href && href.startsWith('local:')) {
-            // Mode fichier local : navigation dans la page
-            const arg = jsArg(groupName);
-            display = `<a href="javascript:void(0)" title="${ttl}" onclick="event.stopPropagation();navigateTo(${arg})">&#x1F50D;</a>`;
-          } else if (href) {
-            // Mode URL : nouvel onglet
-            display = `<a href="${escHtml(href)}" target="_blank" title="${ttl}" onclick="event.stopPropagation()">&#x1F50D;</a>`;
-          } else {
-            display = '\u2014';
-          }
-        } else {
-          display = '';
-        }
+        // Loupe : ouvre la modale des stats détaillées
+        display = `<a href="javascript:void(0)" title="Voir les statistiques détaillées"
+                      onclick="event.stopPropagation();openStatsModal(${jsArg(JSON.stringify(req))})">&#x1F50D;</a>`;
         cls = 'detail-link-cell';
       } else if (col.id === 'name') {
         display = escHtml(req.name); cls = 'col-name';
@@ -784,14 +748,24 @@ function renderTableSection(title, reqs, showDetailLink, getDetailGroupName) {
       return `<td class="${cls}">${display}</td>`;
     }).join('');
 
+    // Triangle : visible seulement si le groupe a des enfants
+    const expandCell = hasChildren
+      ? `<td class="expand-cell" style="cursor:pointer" onclick="toggleRow('${rowId}','${detailId}')" title="Afficher les sous-requêtes">▶</td>`
+      : `<td class="expand-cell"></td>`;
+
+    // Contenu déplié : tableau des enfants du groupe
+    const childrenHtml = hasChildren
+      ? renderTableSection(req.name, children, false, null)
+      : '';
+
     return `
-      <tr class="data-row" onclick="toggleRow('${rowId}','${detailId}')">
-        <td class="expand-cell">▶</td>
+      <tr class="data-row" id="${rowId}">
+        ${expandCell}
         ${cells}
       </tr>
       <tr class="detail-row" id="${detailId}" style="display:none">
         <td colspan="${COLUMNS.length + 1}" class="detail-cell">
-          ${renderDetailPanel(req)}
+          ${childrenHtml}
         </td>
       </tr>`;
   }).join('');
@@ -941,17 +915,36 @@ function toggleRow(rowId, detailId) {
   if (!detailEl) return;
   const isOpen = detailEl.style.display !== 'none';
   detailEl.style.display = isOpen ? 'none' : 'table-row';
-  // Update expand arrow on the data row (previous sibling)
-  const dataRows = detailEl.parentElement.querySelectorAll('.data-row');
-  dataRows.forEach(tr => {
-    const cell = tr.querySelector('.expand-cell');
-    if (!cell) return;
-    // Find corresponding detail row
-    const next = tr.nextElementSibling;
-    if (next && next.id === detailId) {
+  // Mettre à jour la flèche d'expand sur la ligne de données
+  const dataRow = document.getElementById(rowId);
+  if (dataRow) {
+    const cell = dataRow.querySelector('.expand-cell');
+    if (cell && cell.textContent !== '') {
       cell.textContent = isOpen ? '▶' : '▼';
     }
-  });
+  }
+}
+
+/**
+ * Ouvre la modale des stats détaillées pour un nœud donné.
+ * @param {string} reqJson  JSON.stringify(req) — passé depuis un attribut onclick
+ */
+function openStatsModal(reqJson) {
+  const req = JSON.parse(reqJson);
+  document.getElementById('stats-modal-title').textContent = req.name || '';
+  document.getElementById('stats-modal-body').innerHTML = renderDetailPanel(req);
+  document.getElementById('stats-modal').classList.add('open');
+  // Fermer avec Escape
+  document._statsModalEscHandler = e => { if (e.key === 'Escape') closeStatsModal(); };
+  document.addEventListener('keydown', document._statsModalEscHandler);
+}
+
+function closeStatsModal() {
+  document.getElementById('stats-modal').classList.remove('open');
+  if (document._statsModalEscHandler) {
+    document.removeEventListener('keydown', document._statsModalEscHandler);
+    document._statsModalEscHandler = null;
+  }
 }
 
 function showStatus(msg, type) {
