@@ -36,20 +36,28 @@ function switchTab(tab) {
   document.getElementById('file-bar').classList.toggle('active', tab === 'file');
   document.getElementById('tree-bar').classList.toggle('active', tab === 'tree');
   document.getElementById('ftp-bar').classList.toggle('active', tab === 'ftp');
-  // Conteneurs arborescences
+  // Conteneurs arborescences + fils d'Ariane permanents
   const treeContainer = document.getElementById('tree-container');
   const ftpContainer  = document.getElementById('ftp-container');
+  const treeNavSticky = document.getElementById('tree-nav-sticky');
+  const ftpNavSticky  = document.getElementById('ftp-nav-sticky');
   if (tab === 'tree') {
     treeContainer.classList.add('active');
+    if (treeNavSticky.innerHTML) treeNavSticky.classList.add('active');
     if (!treeContainer.dataset.loaded) loadTree();
+    ftpContainer.classList.remove('active');
+    ftpNavSticky.classList.remove('active');
+  } else if (tab === 'ftp') {
+    ftpContainer.classList.add('active');
+    if (ftpNavSticky.innerHTML) ftpNavSticky.classList.add('active');
+    if (!ftpContainer.dataset.loaded) loadTreeFtp();
+    treeContainer.classList.remove('active');
+    treeNavSticky.classList.remove('active');
   } else {
     treeContainer.classList.remove('active');
-  }
-  if (tab === 'ftp') {
-    ftpContainer.classList.add('active');
-    if (!ftpContainer.dataset.loaded) loadTreeFtp();
-  } else {
+    treeNavSticky.classList.remove('active');
     ftpContainer.classList.remove('active');
+    ftpNavSticky.classList.remove('active');
   }
   // Effacer les résultats d'analyse lors d'un changement d'onglet
   clearResults();

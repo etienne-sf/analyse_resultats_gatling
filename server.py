@@ -231,12 +231,9 @@ def _ftp_tree(remote_path: str) -> Dict[str, Any]:
                 stats_path_remote: Optional[str] = None
                 try:
                     sp = full + "/js/stats.json"
-                    sftp.stat(sp)
+                    sftp.stat(sp)          # vérifie l'existence seulement
                     has_stats = True
                     stats_path_remote = sp
-                    if sp not in _ftp_stats_cache:
-                        with sftp.open(sp, "rb") as f:
-                            _ftp_stats_cache[sp] = f.read()
                 except FileNotFoundError:
                     pass
                 m = _DATE_RE.search(name)
@@ -276,10 +273,6 @@ def _ftp_tree(remote_path: str) -> Dict[str, Any]:
                     if any(e.endswith("stats.json") for e in listing):
                         has_stats = True
                         stats_path_remote = sp
-                        if sp not in _ftp_stats_cache:
-                            buf = io.BytesIO()
-                            ftp.retrbinary(f"RETR {sp}", buf.write)
-                            _ftp_stats_cache[sp] = buf.getvalue()
                 except Exception:
                     pass
                 m = _DATE_RE.search(name)
@@ -301,12 +294,16 @@ def _ftp_tree(remote_path: str) -> Dict[str, Any]:
         else:
             raise ValueError(f"Protocole FTP inconnu : {FTP_PROTOCOL!r}")
 
-    with _ftp_lock:
+    if not _ftp_lock.acquire(timeout=60):
+        raise TimeoutError("Le serveur FTP est occupé, réessayez dans quelques secondes.")
+    try:
         try:
             nodes = _do_tree(force_reconnect=False)
         except Exception:
             # 1ᵉʳ échec → reconnexion forcée et nouvel essai
             nodes = _do_tree(force_reconnect=True)
+    finally:
+        _ftp_lock.release()
 
     return {
         "root":       norm,
@@ -338,13 +335,17 @@ def _ftp_read_stats(remote_path: str) -> bytes:
         else:
             raise ValueError(f"Protocole FTP inconnu : {FTP_PROTOCOL!r}")
 
-    with _ftp_lock:
+    if not _ftp_lock.acquire(timeout=60):
+        raise TimeoutError("Le serveur FTP est occupé, réessayez dans quelques secondes.")
+    try:
         try:
             data = _do_read(force_reconnect=False)
         except Exception:
             data = _do_read(force_reconnect=True)
         _ftp_stats_cache[remote_path] = data
         return data
+    finally:
+        _ftp_lock.release()
 
 
 
