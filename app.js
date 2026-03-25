@@ -567,15 +567,16 @@ function walkNode(node, groupPath) {
   if (node.stats) {
     const myGroup = groupPath.length > 0 ? groupPath.join(' › ') : '(Racine)';
     allRequests.push({
-      groupPath: myGroup,
-      groupParts: [...groupPath],
-      name: node.name || node.stats.name || '(sans nom)',
-      type: node.type || 'REQUEST',
-      stats: node.stats,
+      groupPath:   myGroup,
+      groupParts:  [...groupPath],
+      name:        node.name || node.stats.name || '(sans nom)',
+      type:        node.type || 'REQUEST',
+      stats:       node.stats,
+      hasContents: !!(node.contents && Object.keys(node.contents).length > 0),
     });
   }
 
-  // Recurse into contents (collect data, but won't *display* contents block)
+  // Recurse into contents
   if (node.contents && typeof node.contents === 'object') {
     const childGroup = node.name
       ? [...groupPath, node.name]
@@ -658,7 +659,10 @@ function getFilteredRequests() {
 /* ════════════════════════════════════════════════════════════════
    RENDERING
    ════════════════════════════════════════════════════════════════ */
+let _rowIdCounter = 0;   // compteur global d'IDs de lignes — remis à 0 dans renderAll()
+
 function renderAll() {
+  _rowIdCounter = 0;
   const main       = document.getElementById('main-content');
   const empty      = document.getElementById('empty');
   const toolbar    = document.getElementById('toolbar');
@@ -720,16 +724,22 @@ function renderTableSection(title, reqs) {
     return `<th class="${cls}" onclick="setSort('${col.id}')">${escHtml(labelStr)}${arrow}</th>`;
   }).join('');
 
-  const dataRows = sorted.map((req, idx) => {
-    const rowId    = `${sectionId}-row-${idx}`;
-    const detailId = `${sectionId}-det-${idx}`;
+  const dataRows = sorted.map((req) => {
+    const rowId    = `row-${_rowIdCounter}`;
+    const detailId = `det-${_rowIdCounter}`;
+    _rowIdCounter++;
     const ko = numVal(req, 'numberOfRequests', 'ko');
     const koClass = ko > 0 ? 'val-ko' : 'val-ok';
 
     // Enfants du groupe (pour le triangle d'expand)
-    const childPath = 'All Requests \u203a ' + req.name;
-    const children  = allRequests.filter(r => r.groupPath === childPath);
-    const hasChildren = children.length > 0;
+    // childPath = chemin complet du nœud courant dans allRequests
+    const childPath   = req.groupPath === '(Racine)'
+      ? req.name
+      : req.groupPath + ' \u203a ' + req.name;
+    const hasChildren = req.hasContents;
+    const children    = hasChildren
+      ? allRequests.filter(r => r.groupPath === childPath)
+      : [];
 
     const cells = COLUMNS.map(col => {
       const v = col.getValue(req);
@@ -763,7 +773,7 @@ function renderTableSection(title, reqs) {
 
     // Contenu déplié : tableau des enfants du groupe
     const childrenHtml = hasChildren
-      ? renderTableSection(req.name, children, false, null)
+      ? renderTableSection(req.name, children)
       : '';
 
     return `

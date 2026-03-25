@@ -103,19 +103,29 @@ const htmlSection = renderTableSection('All requests', level1);
 // La loupe doit appeler openStatsModal (stats détaillées) — une par ligne visible + enfants inline
 const loupeCount  = (htmlSection.match(/&#x1F50D;/g) || []).length;
 const modalCount  = (htmlSection.match(/openStatsModal\(/g) || []).length;
-// Le triangle doit appeler toggleRow (enfants du groupe)
+// Le triangle doit appeler toggleRow (enfants du groupe) — compté récursivement
 const toggleCount = (htmlSection.match(/toggleRow\(/g) || []).length;
-// Les lignes ayant des enfants dans allRequests
-const withChildren = level1.filter(req => {
-  const childPath = 'All Requests \u203a ' + req.name;
-  return allRequests.some(r => r.groupPath === childPath);
-}).length;
-// Total des lignes rendues (level1 + leurs enfants directs)
-const totalRendered = level1.reduce((acc, req) => {
-  const childPath = 'All Requests \u203a ' + req.name;
-  const kids = allRequests.filter(r => r.groupPath === childPath).length;
-  return acc + 1 + kids;
-}, 0);
+
+// Compte récursif du total de lignes rendues et des groupes avec enfants
+function countRows(reqs, parentPath) {
+  let total = 0, withKids = 0;
+  for (const req of reqs) {
+    total++;
+    const childPath = (req.groupPath === '(Racine)') ? req.name : req.groupPath + ' \u203a ' + req.name;
+    const children  = allRequests.filter(r => r.groupPath === childPath);
+    if (req.hasContents && children.length > 0) {
+      withKids++;
+      const sub = countRows(children, childPath);
+      total   += sub.total;
+      withKids += sub.withKids;
+    }
+  }
+  return { total, withKids };
+}
+const counts = countRows(level1, 'All Requests');
+const totalRendered = counts.total;
+const withChildren  = counts.withKids;
+
 console.log('\n✅ TEST 5 — loupe (modale) et triangle (enfants inline)');
 console.log('   Lignes All requests :', level1.length, '— total rendu (avec enfants) :', totalRendered);
 console.log('   Loupes (openStatsModal) :', loupeCount, '/', modalCount);
