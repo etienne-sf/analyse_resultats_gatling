@@ -143,9 +143,16 @@ function renderTree(container, data) {
       })()
     : '';
 
+  // ── Bouton "Rafraîchir" ──
+  const refreshArg  = jsArg(data.root || '');
+  const refreshHtml = `<button class="tree-nav-btn tree-nav-btn-refresh"
+                                onclick="loadTree(${refreshArg})" title="Rafraîchir ce répertoire">
+                          🔄 Rafraîchir
+                        </button>`;
+
   // Mettre à jour la barre permanente
   const navSticky = document.getElementById('tree-nav-sticky');
-  navSticky.innerHTML = `<nav class="tree-breadcrumb">${crumbHtml}</nav>${parentHtml}`;
+  navSticky.innerHTML = `<nav class="tree-breadcrumb">${crumbHtml}</nav>${parentHtml}${refreshHtml}`;
   navSticky.classList.add('active');
 
   // ── Liste des sous-répertoires : injectée dans container ──
@@ -331,8 +338,15 @@ function renderTreeFtp(container, data) {
       })()
     : '';
 
+  // ── Bouton "Rafraîchir" ──
+  const refreshArgFtp  = jsArg(data.root || '/');
+  const refreshHtmlFtp = `<button class="tree-nav-btn tree-nav-btn-refresh"
+                                   onclick="loadTreeFtp(${refreshArgFtp})" title="Rafraîchir ce répertoire">
+                             🔄 Rafraîchir
+                           </button>`;
+
   const navSticky = document.getElementById('ftp-nav-sticky');
-  navSticky.innerHTML = `<nav class="tree-breadcrumb">${crumbHtml}</nav>${parentHtml}`;
+  navSticky.innerHTML = `<nav class="tree-breadcrumb">${crumbHtml}</nav>${parentHtml}${refreshHtmlFtp}`;
   navSticky.classList.add('active');
 
   // ── Liste ──
